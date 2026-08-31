@@ -1,0 +1,6 @@
+{
+  "name": "SBY Invest AI",
+  "description": "ระบบวิเคราะห์และช่วยตัดสินใจลงทุน ผสาน Fundamental Analysis (What to Buy) และ Technical Trading (When & How to Trade) พร้อมระบบ AI อัจฉริยะ",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
