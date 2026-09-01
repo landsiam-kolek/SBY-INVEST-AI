@@ -186,20 +186,20 @@ export interface StockData {
   marketCapCategory?: 'LARGE_CAP' | 'MID_CAP' | 'SMALL_CAP' | 'MAI';
   prevClosePrice?: number; // ราคาปิดเมื่อวาน (Previous Close)
   
-  // Fundamental & Valuation (For Stocks)
-  pe: number;
-  industryPe: number;
-  pbv: number;
-  roe: number;
-  dividendYield: number;
-  de: number;
-  netMargin: number;
-  revenueGrowth: number;
-  eps: number;
-  fairValue: number;
-  marginOfSafety: number; // in %
-  valuationStatus: ValuationStatus;
-  fundamentalScore: number; // 0 - 100
+  // Fundamental & Valuation (For Stocks - strictly optional if provider data unavailable)
+  pe?: number;
+  industryPe?: number;
+  pbv?: number;
+  roe?: number;
+  dividendYield?: number;
+  de?: number;
+  netMargin?: number;
+  revenueGrowth?: number;
+  eps?: number;
+  fairValue?: number;
+  marginOfSafety?: number; // in %
+  valuationStatus?: ValuationStatus;
+  fundamentalScore?: number; // 0 - 100
   dcfValue?: number;
   grahamValue?: number;
 
@@ -207,24 +207,24 @@ export interface StockData {
   forexMacro?: ForexMacroData;
   
   // Technical & Timing
-  trend: TrendType;
-  technicalScore: number; // 0 - 100
-  rsi: number;
-  macdSignal: 'BULLISH_CROSSOVER' | 'BEARISH_CROSSOVER' | 'NEUTRAL';
-  ema20: number;
-  ema50: number;
-  ema200: number;
-  support1: number;
-  support2: number;
-  resistance1: number;
-  resistance2: number;
-  stopLossPrice: number;
-  targetPrice1: number;
-  targetPrice2: number;
-  technicalSignal: TechnicalSignalType;
+  trend?: TrendType;
+  technicalScore?: number; // 0 - 100
+  rsi?: number;
+  macdSignal?: 'BULLISH_CROSSOVER' | 'BEARISH_CROSSOVER' | 'NEUTRAL';
+  ema20?: number;
+  ema50?: number;
+  ema200?: number;
+  support1?: number;
+  support2?: number;
+  resistance1?: number;
+  resistance2?: number;
+  stopLossPrice?: number;
+  targetPrice1?: number;
+  targetPrice2?: number;
+  technicalSignal?: TechnicalSignalType;
   
   // Qualitative
-  compositeRating: CompositeRating;
+  compositeRating?: CompositeRating;
   businessDescription: string;
   strengths: string[];
   risks: string[];
@@ -327,14 +327,14 @@ export type DayTradeTimeframe = '1_DAY' | '2_3_DAYS' | '1_WEEK';
 
 export interface DayTradeIndicators {
   emaTrend: 'STRONG_BULLISH' | 'BULLISH' | 'BEARISH' | 'NEUTRAL';
-  ema5: number;
-  ema10: number;
-  ema25: number;
-  rsi: number;
+  ema5?: number;
+  ema10?: number;
+  ema25?: number;
+  rsi?: number;
   rsiStatus: 'OVERSOLD_DIP' | 'SUPER_MOMENTUM' | 'HEALTHY_BULL' | 'OVERBOUGHT_DANGER' | 'NEUTRAL';
   volumeSurgePercent: number; // e.g. +230%
   macdStatus: 'BULLISH_CROSS' | 'HISTOGRAM_POSITIVE' | 'BEARISH';
-  volatilityATR: number;
+  volatilityATR?: number;
 }
 
 export interface AIRiskAudit {

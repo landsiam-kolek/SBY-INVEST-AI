@@ -116,8 +116,8 @@ export const TechnicalModule: React.FC<TechnicalModuleProps> = ({ stock }) => {
   }, [candles, candleSpacing, minPrice, maxPrice]);
 
   // Support / Resistance Distance
-  const distS1 = ((stock.support1 - stock.currentPrice) / stock.currentPrice) * 100;
-  const distR1 = ((stock.resistance1 - stock.currentPrice) / stock.currentPrice) * 100;
+  const distS1 = stock.support1 !== undefined ? ((stock.support1 - stock.currentPrice) / stock.currentPrice) * 100 : undefined;
+  const distR1 = stock.resistance1 !== undefined ? ((stock.resistance1 - stock.currentPrice) / stock.currentPrice) * 100 : undefined;
 
   return (
     <div className="bg-white dark:bg-[#121215] rounded-2xl border border-slate-200 dark:border-zinc-800/80 shadow-sm p-5 sm:p-6 mb-6">
@@ -295,60 +295,76 @@ export const TechnicalModule: React.FC<TechnicalModuleProps> = ({ stock }) => {
             {showSupportResistance && (
               <>
                 {/* Resistance 1 */}
-                <line
-                  x1="0"
-                  y1={priceToY(stock.resistance1)}
-                  x2={chartWidth}
-                  y2={priceToY(stock.resistance1)}
-                  stroke="#f43f5e"
-                  strokeWidth="1.5"
-                  strokeDasharray="6 3"
-                />
-                <text x={chartWidth - 85} y={priceToY(stock.resistance1) - 4} fill="#f43f5e" fontSize="10" fontWeight="bold">
-                  R1: {stock.resistance1}
-                </text>
+                {stock.resistance1 !== undefined && (
+                  <>
+                    <line
+                      x1="0"
+                      y1={priceToY(stock.resistance1)}
+                      x2={chartWidth}
+                      y2={priceToY(stock.resistance1)}
+                      stroke="#f43f5e"
+                      strokeWidth="1.5"
+                      strokeDasharray="6 3"
+                    />
+                    <text x={chartWidth - 85} y={priceToY(stock.resistance1) - 4} fill="#f43f5e" fontSize="10" fontWeight="bold">
+                      R1: {stock.resistance1}
+                    </text>
+                  </>
+                )}
 
                 {/* Resistance 2 */}
-                <line
-                  x1="0"
-                  y1={priceToY(stock.resistance2)}
-                  x2={chartWidth}
-                  y2={priceToY(stock.resistance2)}
-                  stroke="#fb7185"
-                  strokeWidth="1.2"
-                  strokeDasharray="4 4"
-                />
-                <text x={chartWidth - 85} y={priceToY(stock.resistance2) - 4} fill="#fb7185" fontSize="10">
-                  R2: {stock.resistance2}
-                </text>
+                {stock.resistance2 !== undefined && (
+                  <>
+                    <line
+                      x1="0"
+                      y1={priceToY(stock.resistance2)}
+                      x2={chartWidth}
+                      y2={priceToY(stock.resistance2)}
+                      stroke="#fb7185"
+                      strokeWidth="1.2"
+                      strokeDasharray="4 4"
+                    />
+                    <text x={chartWidth - 85} y={priceToY(stock.resistance2) - 4} fill="#fb7185" fontSize="10">
+                      R2: {stock.resistance2}
+                    </text>
+                  </>
+                )}
 
                 {/* Support 1 */}
-                <line
-                  x1="0"
-                  y1={priceToY(stock.support1)}
-                  x2={chartWidth}
-                  y2={priceToY(stock.support1)}
-                  stroke="#10b981"
-                  strokeWidth="1.5"
-                  strokeDasharray="6 3"
-                />
-                <text x={chartWidth - 85} y={priceToY(stock.support1) - 4} fill="#10b981" fontSize="10" fontWeight="bold">
-                  S1: {stock.support1}
-                </text>
+                {stock.support1 !== undefined && (
+                  <>
+                    <line
+                      x1="0"
+                      y1={priceToY(stock.support1)}
+                      x2={chartWidth}
+                      y2={priceToY(stock.support1)}
+                      stroke="#10b981"
+                      strokeWidth="1.5"
+                      strokeDasharray="6 3"
+                    />
+                    <text x={chartWidth - 85} y={priceToY(stock.support1) - 4} fill="#10b981" fontSize="10" fontWeight="bold">
+                      S1: {stock.support1}
+                    </text>
+                  </>
+                )}
 
                 {/* Support 2 */}
-                <line
-                  x1="0"
-                  y1={priceToY(stock.support2)}
-                  x2={chartWidth}
-                  y2={priceToY(stock.support2)}
-                  stroke="#34d399"
-                  strokeWidth="1.2"
-                  strokeDasharray="4 4"
-                />
-                <text x={chartWidth - 85} y={priceToY(stock.support2) - 4} fill="#34d399" fontSize="10">
-                  S2: {stock.support2}
-                </text>
+                {stock.support2 !== undefined && (
+                  <>
+                    <line
+                      x1="0"
+                      y1={priceToY(stock.support2)}
+                      x2={chartWidth}
+                      y2={priceToY(stock.support2)}
+                      stroke="#34d399"
+                      strokeWidth="1.2"
+                      strokeDasharray="4 4"
+                    />
+                    <text x={chartWidth - 85} y={priceToY(stock.support2) - 4} fill="#34d399" fontSize="10">
+                      S2: {stock.support2}
+                    </text>
+                  </>
+                )}
               </>
             )}
 
@@ -494,7 +510,9 @@ export const TechnicalModule: React.FC<TechnicalModuleProps> = ({ stock }) => {
             )}
           </div>
           <p className="text-[11px] text-slate-500 dark:text-zinc-400 mt-1">
-            {stock.currentPrice > stock.ema200 ? 'ราคาอยู่เหนือ EMA200 (แข็งแกร่ง)' : 'ราคาอยู่ใต้ EMA200 (ระวังแรงขาย)'}
+            {stock.ema200 !== undefined 
+              ? (stock.currentPrice > stock.ema200 ? 'ราคาอยู่เหนือ EMA200 (แข็งแกร่ง)' : 'ราคาอยู่ใต้ EMA200 (ระวังแรงขาย)')
+              : 'รอคำนวณ EMA200'}
           </p>
         </div>
 
@@ -503,24 +521,30 @@ export const TechnicalModule: React.FC<TechnicalModuleProps> = ({ stock }) => {
           <div className="flex justify-between items-center mb-1">
             <span className="text-xs font-bold text-slate-400 dark:text-zinc-500">RSI (14 วัน)</span>
             <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
-              stock.rsi >= 70 
-                ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-400'
-                : stock.rsi <= 30
-                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400'
-                : 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400'
+              stock.rsi !== undefined
+                ? (stock.rsi >= 70 
+                    ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-400'
+                    : stock.rsi <= 30
+                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400'
+                    : 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400')
+                : 'bg-slate-100 text-slate-600 dark:bg-zinc-800 dark:text-zinc-400'
             }`}>
-              {stock.rsi >= 70 ? 'Overbought ซื้อมากไป' : stock.rsi <= 30 ? 'Oversold ขายมากไป' : 'Bullish Zone'}
+              {stock.rsi !== undefined 
+                ? (stock.rsi >= 70 ? 'Overbought ซื้อมากไป' : stock.rsi <= 30 ? 'Oversold ขายมากไป' : 'Bullish Zone')
+                : 'N/A'}
             </span>
           </div>
           <div className="text-lg font-black text-slate-900 dark:text-white mt-1">
-            {stock.rsi}
+            {stock.rsi !== undefined ? stock.rsi : 'N/A'}
           </div>
           <div className="w-full bg-slate-200 dark:bg-zinc-800 h-1.5 rounded-full overflow-hidden mt-2">
             <div
               className={`h-full rounded-full ${
-                stock.rsi >= 70 ? 'bg-rose-500' : stock.rsi <= 30 ? 'bg-emerald-500' : 'bg-blue-500'
+                stock.rsi !== undefined 
+                  ? (stock.rsi >= 70 ? 'bg-rose-500' : stock.rsi <= 30 ? 'bg-emerald-500' : 'bg-blue-500')
+                  : 'bg-slate-300 dark:bg-zinc-700'
               }`}
-              style={{ width: `${stock.rsi}%` }}
+              style={{ width: `${stock.rsi !== undefined ? stock.rsi : 0}%` }}
             ></div>
           </div>
         </div>
@@ -533,15 +557,19 @@ export const TechnicalModule: React.FC<TechnicalModuleProps> = ({ stock }) => {
           <div className="flex items-baseline justify-between mt-1">
             <div>
               <span className="text-[10px] text-slate-400 dark:text-zinc-400 block">แนวรับที่ 1 (S1)</span>
-              <span className="text-base font-black text-emerald-600 dark:text-emerald-400">{stock.support1}</span>
+              <span className="text-base font-black text-emerald-600 dark:text-emerald-400">
+                {stock.support1 !== undefined ? stock.support1 : 'N/A'}
+              </span>
             </div>
             <div>
               <span className="text-[10px] text-slate-400 dark:text-zinc-400 block">แนวรับที่ 2 (S2)</span>
-              <span className="text-sm font-bold text-slate-700 dark:text-zinc-300">{stock.support2}</span>
+              <span className="text-sm font-bold text-slate-700 dark:text-zinc-300">
+                {stock.support2 !== undefined ? stock.support2 : 'N/A'}
+              </span>
             </div>
           </div>
           <p className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-1">
-            ห่างจาก S1: {distS1.toFixed(1)}%
+            {distS1 !== undefined ? `ห่างจาก S1: ${distS1.toFixed(1)}%` : 'รอข้อมูลแนวรับ'}
           </p>
         </div>
 
@@ -553,15 +581,19 @@ export const TechnicalModule: React.FC<TechnicalModuleProps> = ({ stock }) => {
           <div className="flex items-baseline justify-between mt-1">
             <div>
               <span className="text-[10px] text-slate-400 dark:text-zinc-400 block">แนวต้านที่ 1 (R1)</span>
-              <span className="text-base font-black text-rose-600 dark:text-rose-400">{stock.resistance1}</span>
+              <span className="text-base font-black text-rose-600 dark:text-rose-400">
+                {stock.resistance1 !== undefined ? stock.resistance1 : 'N/A'}
+              </span>
             </div>
             <div>
               <span className="text-[10px] text-slate-400 dark:text-zinc-400 block">แนวต้านที่ 2 (R2)</span>
-              <span className="text-sm font-bold text-slate-700 dark:text-zinc-300">{stock.resistance2}</span>
+              <span className="text-sm font-bold text-slate-700 dark:text-zinc-300">
+                {stock.resistance2 !== undefined ? stock.resistance2 : 'N/A'}
+              </span>
             </div>
           </div>
           <p className="text-[11px] text-rose-600 dark:text-rose-400 mt-1">
-            ห่างจาก R1: +{distR1.toFixed(1)}%
+            {distR1 !== undefined ? `ห่างจาก R1: +${distR1.toFixed(1)}%` : 'รอข้อมูลแนวต้าน'}
           </p>
         </div>
       </div>
@@ -586,13 +618,13 @@ export const TechnicalModule: React.FC<TechnicalModuleProps> = ({ stock }) => {
             <div className="flex justify-between items-center py-1 border-b border-indigo-100 dark:border-indigo-900/40">
               <span className="text-slate-500 dark:text-zinc-400">TP2: Fib Extension (127.2%)</span>
               <span className="font-bold text-indigo-600 dark:text-indigo-400">
-                {stock.targetPrice2 || (stock.currentPrice * 1.15).toFixed(2)} THB
+                {stock.targetPrice2 !== undefined ? `${stock.targetPrice2} THB` : 'N/A'}
               </span>
             </div>
             <div className="flex justify-between items-center py-1 border-b border-indigo-100 dark:border-indigo-900/40">
               <span className="text-slate-500 dark:text-zinc-400">TP1: Swing High (100.0%)</span>
               <span className="font-bold text-slate-800 dark:text-zinc-200">
-                {stock.targetPrice1 || (stock.currentPrice * 1.08).toFixed(2)} THB
+                {stock.targetPrice1 !== undefined ? `${stock.targetPrice1} THB` : 'N/A'}
               </span>
             </div>
             <div className="flex justify-between items-center py-1 bg-amber-500/10 dark:bg-amber-500/15 px-2 rounded-lg">
@@ -600,13 +632,13 @@ export const TechnicalModule: React.FC<TechnicalModuleProps> = ({ stock }) => {
                 <span>🎯 Golden Pocket (61.8% Entry):</span>
               </span>
               <span className="font-black text-amber-700 dark:text-amber-300">
-                {stock.support1 || (stock.currentPrice * 0.98).toFixed(2)} THB
+                {stock.support1 !== undefined ? `${stock.support1} THB` : 'N/A'}
               </span>
             </div>
             <div className="flex justify-between items-center py-1">
               <span className="text-slate-500 dark:text-zinc-400">SL: Safe Stop (Under Swing Low)</span>
               <span className="font-bold text-rose-600 dark:text-rose-400">
-                {stock.stopLossPrice} THB
+                {stock.stopLossPrice !== undefined ? `${stock.stopLossPrice} THB` : 'N/A'}
               </span>
             </div>
           </div>

@@ -326,16 +326,20 @@ export const FundamentalModule: React.FC<FundamentalModuleProps> = ({ stock }) =
             <div className="flex justify-between items-start mb-1">
               <span className="text-[11px] font-semibold text-slate-500 dark:text-zinc-400">P/E Ratio</span>
               <span className={`text-[10px] px-1.5 py-0.2 rounded font-bold ${
-                stock.pe < stock.industryPe ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400' : 'bg-slate-100 text-slate-600 dark:bg-zinc-800 dark:text-zinc-300'
+                stock.pe !== undefined && stock.industryPe !== undefined && stock.pe < stock.industryPe 
+                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400' 
+                  : 'bg-slate-100 text-slate-600 dark:bg-zinc-800 dark:text-zinc-300'
               }`}>
-                {stock.pe < stock.industryPe ? 'ถูกกว่ากลุ่ม' : 'พรีเมียม'}
+                {stock.pe !== undefined && stock.industryPe !== undefined 
+                  ? (stock.pe < stock.industryPe ? 'ถูกกว่ากลุ่ม' : 'พรีเมียม')
+                  : 'N/A'}
               </span>
             </div>
             <div className="text-lg font-black text-slate-900 dark:text-white">
-              {stock.pe}x
+              {stock.pe !== undefined ? `${stock.pe}x` : 'N/A'}
             </div>
             <div className="text-[11px] text-slate-400 dark:text-zinc-500 mt-0.5">
-              กลุ่มเฉลี่ย {stock.industryPe}x
+              {stock.industryPe !== undefined ? `กลุ่มเฉลี่ย ${stock.industryPe}x` : 'รอข้อมูลอุตสาหกรรม'}
             </div>
           </div>
 
@@ -346,10 +350,10 @@ export const FundamentalModule: React.FC<FundamentalModuleProps> = ({ stock }) =
               <span className="text-[10px] text-slate-400 dark:text-zinc-500 font-bold">Book Val</span>
             </div>
             <div className="text-lg font-black text-slate-900 dark:text-white">
-              {stock.pbv}x
+              {stock.pbv !== undefined ? `${stock.pbv}x` : 'N/A'}
             </div>
             <div className="text-[11px] text-slate-400 dark:text-zinc-500 mt-0.5">
-              {stock.pbv < 1.5 ? 'สินทรัพย์สูง' : 'พรีเมียมแบรนด์'}
+              {stock.pbv !== undefined ? (stock.pbv < 1.5 ? 'สินทรัพย์สูง' : 'พรีเมียมแบรนด์') : 'รอข้อมูลงบ'}
             </div>
           </div>
 
@@ -358,16 +362,16 @@ export const FundamentalModule: React.FC<FundamentalModuleProps> = ({ stock }) =
             <div className="flex justify-between items-start mb-1">
               <span className="text-[11px] font-semibold text-slate-500 dark:text-zinc-400">ROE (ผลตอบแทน)</span>
               <span className={`text-[10px] px-1.5 py-0.2 rounded font-bold ${
-                stock.roe >= 15 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400'
+                stock.roe !== undefined && stock.roe >= 15 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400'
               }`}>
-                {stock.roe >= 15 ? 'เกรด A' : 'ปานกลาง'}
+                {stock.roe !== undefined ? (stock.roe >= 15 ? 'เกรด A' : 'ปานกลาง') : 'N/A'}
               </span>
             </div>
             <div className="text-lg font-black text-blue-600 dark:text-blue-400">
-              {stock.roe}%
+              {stock.roe !== undefined ? `${stock.roe}%` : 'N/A'}
             </div>
             <div className="text-[11px] text-slate-400 dark:text-zinc-500 mt-0.5">
-              เกณฑ์ดี &gt; 15%
+              {stock.roe !== undefined ? 'เกณฑ์ดี > 15%' : 'รอข้อมูลงบ'}
             </div>
           </div>
 
@@ -376,13 +380,13 @@ export const FundamentalModule: React.FC<FundamentalModuleProps> = ({ stock }) =
             <div className="flex justify-between items-start mb-1">
               <span className="text-[11px] font-semibold text-slate-500 dark:text-zinc-400">Div. Yield</span>
               <span className={`text-[10px] px-1.5 py-0.2 rounded font-bold ${
-                stock.dividendYield >= 3 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400' : 'bg-slate-100 text-slate-600 dark:bg-zinc-800 dark:text-zinc-300'
+                stock.dividendYield !== undefined && stock.dividendYield >= 3 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400' : 'bg-slate-100 text-slate-600 dark:bg-zinc-800 dark:text-zinc-300'
               }`}>
-                {stock.dividendYield >= 3 ? 'ปันผลเด่น' : 'ปกติ'}
+                {stock.dividendYield !== undefined ? (stock.dividendYield >= 3 ? 'ปันผลเด่น' : 'ปกติ') : 'N/A'}
               </span>
             </div>
             <div className="text-lg font-black text-emerald-600 dark:text-emerald-400">
-              {stock.dividendYield}%
+              {stock.dividendYield !== undefined ? `${stock.dividendYield}%` : 'N/A'}
             </div>
             <div className="text-[11px] text-slate-400 dark:text-zinc-500 mt-0.5">
               ต่อปี
@@ -394,13 +398,13 @@ export const FundamentalModule: React.FC<FundamentalModuleProps> = ({ stock }) =
             <div className="flex justify-between items-start mb-1">
               <span className="text-[11px] font-semibold text-slate-500 dark:text-zinc-400">หนี้สิน (D/E)</span>
               <span className={`text-[10px] px-1.5 py-0.2 rounded font-bold ${
-                stock.de <= 1.5 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400' : 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400'
+                stock.de !== undefined && stock.de <= 1.5 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400' : 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400'
               }`}>
-                {stock.de <= 1.5 ? 'หนี้ต่ำ' : 'หนี้สูง'}
+                {stock.de !== undefined ? (stock.de <= 1.5 ? 'หนี้ต่ำ' : 'หนี้สูง') : 'N/A'}
               </span>
             </div>
             <div className="text-lg font-black text-slate-900 dark:text-white">
-              {stock.de}x
+              {stock.de !== undefined ? `${stock.de}x` : 'N/A'}
             </div>
             <div className="text-[11px] text-slate-400 dark:text-zinc-500 mt-0.5">
               เกณฑ์ปลอดภัย &lt; 1.5x
@@ -414,10 +418,10 @@ export const FundamentalModule: React.FC<FundamentalModuleProps> = ({ stock }) =
               <span className="text-[10px] text-slate-400 dark:text-zinc-500 font-bold">กำไรสุทธิ</span>
             </div>
             <div className="text-lg font-black text-slate-900 dark:text-white">
-              {stock.netMargin}%
+              {stock.netMargin !== undefined ? `${stock.netMargin}%` : 'N/A'}
             </div>
             <div className="text-[11px] text-slate-400 dark:text-zinc-500 mt-0.5">
-              โต YoY {stock.revenueGrowth > 0 ? `+${stock.revenueGrowth}%` : `${stock.revenueGrowth}%`}
+              {stock.revenueGrowth !== undefined ? `โต YoY ${stock.revenueGrowth > 0 ? `+${stock.revenueGrowth}%` : `${stock.revenueGrowth}%`}` : 'รอข้อมูลงบ'}
             </div>
           </div>
         </div>
@@ -440,9 +444,11 @@ export const FundamentalModule: React.FC<FundamentalModuleProps> = ({ stock }) =
                 ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300'
                 : stock.valuationStatus === 'OVERVALUED'
                 ? 'bg-rose-100 text-rose-800 dark:bg-rose-500/20 dark:text-rose-300'
-                : 'bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300'
+                : stock.valuationStatus === 'FAIR'
+                ? 'bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300'
+                : 'bg-slate-100 text-slate-600 dark:bg-zinc-800 dark:text-zinc-300'
             }`}>
-              {stock.valuationStatus === 'UNDERVALUED' ? 'Undervalued (ถูกกว่าพื้นฐาน)' : stock.valuationStatus === 'OVERVALUED' ? 'Overvalued (แพงกว่าพื้นฐาน)' : 'Fair Price (ราคาเหมาะสม)'}
+              {stock.valuationStatus === 'UNDERVALUED' ? 'Undervalued (ถูกกว่าพื้นฐาน)' : stock.valuationStatus === 'OVERVALUED' ? 'Overvalued (แพงกว่าพื้นฐาน)' : stock.valuationStatus === 'FAIR' ? 'Fair Price (ราคาเหมาะสม)' : 'รอข้อมูล Valuation'}
             </span>
           </div>
 
@@ -453,10 +459,10 @@ export const FundamentalModule: React.FC<FundamentalModuleProps> = ({ stock }) =
                 SBY Fair Value (มูลค่าเหมาะสม)
               </span>
               <div className="text-xl font-black text-blue-600 dark:text-blue-400 mt-0.5">
-                {stock.fairValue} <span className="text-xs text-slate-400 font-normal">{stock.currency}</span>
+                {stock.fairValue !== undefined ? stock.fairValue : 'N/A'} <span className="text-xs text-slate-400 font-normal">{stock.fairValue !== undefined ? stock.currency : ''}</span>
               </div>
               <div className="text-[10px] text-slate-400 dark:text-zinc-500 mt-1">
-                เป้าหมายพื้นฐานปี 2025
+                {stock.fairValue !== undefined ? 'เป้าหมายพื้นฐานปี 2025' : 'รอข้อมูลงบการเงิน'}
               </div>
             </div>
 
@@ -466,10 +472,10 @@ export const FundamentalModule: React.FC<FundamentalModuleProps> = ({ stock }) =
                 DCF Intrinsic Value
               </span>
               <div className="text-xl font-black text-slate-900 dark:text-white mt-0.5">
-                {stock.dcfValue || (stock.fairValue * 1.05).toFixed(2)} <span className="text-xs text-slate-400 font-normal">{stock.currency}</span>
+                {stock.dcfValue !== undefined ? stock.dcfValue : 'N/A'} <span className="text-xs text-slate-400 font-normal">{stock.dcfValue !== undefined ? stock.currency : ''}</span>
               </div>
               <div className="text-[10px] text-slate-400 dark:text-zinc-500 mt-1">
-                คิดลดกระแสเงินสด 10 ปี
+                {stock.dcfValue !== undefined ? 'คิดลดกระแสเงินสด 10 ปี' : 'รอข้อมูลกระแสเงินสด'}
               </div>
             </div>
 
@@ -479,10 +485,10 @@ export const FundamentalModule: React.FC<FundamentalModuleProps> = ({ stock }) =
                 Graham Number (ความปลอดภัย)
               </span>
               <div className="text-xl font-black text-slate-900 dark:text-white mt-0.5">
-                {stock.grahamValue || (stock.fairValue * 0.9).toFixed(2)} <span className="text-xs text-slate-400 font-normal">{stock.currency}</span>
+                {stock.grahamValue !== undefined ? stock.grahamValue : 'N/A'} <span className="text-xs text-slate-400 font-normal">{stock.grahamValue !== undefined ? stock.currency : ''}</span>
               </div>
               <div className="text-[10px] text-slate-400 dark:text-zinc-500 mt-1">
-                เกณฑ์อนุรักษ์นิยม
+                {stock.grahamValue !== undefined ? 'เกณฑ์อนุรักษ์นิยม' : 'รอข้อมูลงบ BV/EPS'}
               </div>
             </div>
           </div>
@@ -494,17 +500,21 @@ export const FundamentalModule: React.FC<FundamentalModuleProps> = ({ stock }) =
                 Margin of Safety (MOS):
               </span>
               <span className={`font-black text-sm ${
-                stock.marginOfSafety >= 10 ? 'text-emerald-600 dark:text-emerald-400' : stock.marginOfSafety <= -10 ? 'text-rose-600 dark:text-rose-400' : 'text-amber-600 dark:text-amber-400'
+                stock.marginOfSafety !== undefined 
+                  ? (stock.marginOfSafety >= 10 ? 'text-emerald-600 dark:text-emerald-400' : stock.marginOfSafety <= -10 ? 'text-rose-600 dark:text-rose-400' : 'text-amber-600 dark:text-amber-400')
+                  : 'text-slate-400 dark:text-zinc-500'
               }`}>
-                {stock.marginOfSafety > 0 ? `+${stock.marginOfSafety}%` : `${stock.marginOfSafety}%`}
+                {stock.marginOfSafety !== undefined ? (stock.marginOfSafety > 0 ? `+${stock.marginOfSafety}%` : `${stock.marginOfSafety}%`) : 'N/A'}
               </span>
             </div>
             <p className="text-[11px] text-slate-500 dark:text-zinc-400">
-              {stock.marginOfSafety >= 10 
-                ? '✓ มีแต้มต่อความปลอดภัยสูง (MOS > 10%) จังหวะสะสมเพื่อการลงทุนระยะยาว' 
-                : stock.marginOfSafety < 0 
-                ? '⚠ ราคาตลาดสูงกว่ามูลค่าพื้นฐาน ควรใช้ความระมัดระวังหรือรอจังหวะย่อตัว' 
-                : '• ราคาเทรดใกล้เคียงมูลค่าพื้นฐาน เหมาะแก่การสวิงเทรดตามกรอบเทคนิค'}
+              {stock.marginOfSafety !== undefined 
+                ? (stock.marginOfSafety >= 10 
+                    ? '✓ มีแต้มต่อความปลอดภัยสูง (MOS > 10%) จังหวะสะสมเพื่อการลงทุนระยะยาว' 
+                    : stock.marginOfSafety < 0 
+                    ? '⚠ ราคาตลาดสูงกว่ามูลค่าพื้นฐาน ควรใช้ความระมัดระวังหรือรอจังหวะย่อตัว' 
+                    : '• ราคาเทรดใกล้เคียงมูลค่าพื้นฐาน เหมาะแก่การสวิงเทรดตามกรอบเทคนิค')
+                : 'รอการเชื่อมต่อข้อมูลงบการเงินจากตลาดหลักทรัพย์เพื่อคำนวณ Margin of Safety ที่แม่นยำ'}
             </p>
           </div>
         </div>

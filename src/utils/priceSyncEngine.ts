@@ -451,25 +451,10 @@ export function updateStockWithNewPrice(
   if (isNaN(change)) change = 0;
   if (isNaN(changePercent)) changePercent = 0;
 
-  // Technical Levels recalculation
-  const isUptrend = stock.trend === 'UPTREND';
-  const support1 = Number((price * 0.97).toFixed(2));
-  const support2 = Number((price * 0.94).toFixed(2));
-  const resistance1 = Number((price * 1.045).toFixed(2));
-  const resistance2 = Number((price * 1.09).toFixed(2));
-  const stopLossPrice = Number((price * 0.955).toFixed(2));
-  const targetPrice1 = resistance1;
-  const targetPrice2 = resistance2;
-
-  const ema20 = Number((price * (isUptrend ? 0.982 : 1.018)).toFixed(2));
-  const ema50 = Number((price * (isUptrend ? 0.965 : 1.035)).toFixed(2));
-  const ema200 = Number((price * (isUptrend ? 0.92 : 1.08)).toFixed(2));
-
-  // Valuation metrics recalculation
-  const eps = stock.eps || Math.max(0.01, Number((price / 18).toFixed(2)));
-  const pe = eps > 0 ? Number((price / eps).toFixed(1)) : stock.pe;
-  const fairValue = stock.fairValue || Number((price * 1.15).toFixed(2));
-  const marginOfSafety = Number((((fairValue - price) / fairValue) * 100).toFixed(2));
+  // Valuation metrics recalculation (only if EPS exists)
+  const pe = (stock.eps && stock.eps > 0) ? Number((price / stock.eps).toFixed(1)) : stock.pe;
+  const fairValue = stock.fairValue;
+  const marginOfSafety = fairValue ? Number((((fairValue - price) / fairValue) * 100).toFixed(2)) : undefined;
 
   // Market Cap category
   const marketCapCategory = categorizeStockCapSize(stock);
@@ -482,8 +467,6 @@ export function updateStockWithNewPrice(
     lastCandle.close = price;
     lastCandle.high = Math.max(lastCandle.high, price);
     lastCandle.low = Math.min(lastCandle.low, price);
-    lastCandle.ema20 = ema20;
-    lastCandle.ema50 = ema50;
     updatedCandles[lastIdx] = lastCandle;
   }
 
@@ -504,22 +487,13 @@ export function updateStockWithNewPrice(
     change,
     changePercent,
     pe,
+    fairValue,
     marginOfSafety,
-    support1,
-    support2,
-    resistance1,
-    resistance2,
-    stopLossPrice,
-    targetPrice1,
-    targetPrice2,
-    ema20,
-    ema50,
-    ema200,
     candles: updatedCandles,
-    actionPlanSummary: stock.actionPlanSummary.replace(
+    actionPlanSummary: stock.actionPlanSummary ? stock.actionPlanSummary.replace(
       /ราคา(ปิด|อัปเดต)ล่าสุด\s*[\d\.,]+\s*บาท/g,
       `ราคาปิดล่าสุด (Last EOD) ${price.toFixed(2)} บาท`
-    ),
+    ) : `ราคาปิด EOD ${price.toFixed(2)} บาท`,
   };
 }
 

@@ -190,8 +190,8 @@ export function buildIntelligentPortfolio(
     const weight = rawWeights[idx] || Math.round(100 / count);
     const allocated = (capital * weight) / 100;
     const entry = stock.currentPrice;
-    const target = stock.targetPrice1 || stock.fairValue || entry * 1.15;
-    const stopLoss = stock.stopLossPrice || entry * 0.93;
+    const target = stock.targetPrice1 || stock.resistance1 || stock.fairValue || entry;
+    const stopLoss = stock.stopLossPrice || stock.support1 || entry;
 
     // Calculate shares or lot size
     let recommendedShares = 0;
@@ -239,7 +239,7 @@ export function buildIntelligentPortfolio(
       stock,
       weightPercent: weight,
       allocatedCapital: Math.round(allocated),
-      recommendedBuyZone: `${(entry * 0.985).toFixed(2)} - ${(entry * 1.01).toFixed(2)}`,
+      recommendedBuyZone: stock.support1 ? `${stock.support1.toFixed(2)} - ${entry.toFixed(2)}` : `${entry.toFixed(2)}`,
       recommendedShares,
       entryPrice: entry,
       targetPrice: target,
@@ -342,8 +342,8 @@ export function recalculatePortfolioFromItems(
   const updatedItems: PortfolioItem[] = items.map((item) => {
     const stock = item.stock;
     const entry = item.entryPrice || stock.currentPrice;
-    const target = item.targetPrice || stock.targetPrice1 || entry * 1.15;
-    const stopLoss = item.stopLossPrice || stock.stopLossPrice || entry * 0.93;
+    const target = item.targetPrice || stock.targetPrice1 || stock.resistance1 || stock.fairValue || entry;
+    const stopLoss = item.stopLossPrice || stock.stopLossPrice || stock.support1 || entry;
     const weight = totalWeight > 0 ? Number(item.weightPercent) : Number((100 / count).toFixed(1));
     const allocated = Math.round((capital * weight) / 100);
 
@@ -373,7 +373,7 @@ export function recalculatePortfolioFromItems(
       weightPercent: weight,
       allocatedCapital: allocated,
       recommendedShares,
-      recommendedBuyZone: `${(entry * 0.985).toFixed(2)} - ${(entry * 1.01).toFixed(2)}`,
+      recommendedBuyZone: stock.support1 ? `${stock.support1.toFixed(2)} - ${entry.toFixed(2)}` : `${entry.toFixed(2)}`,
       expectedReturnPercent,
       riskPercent,
       riskRewardRatio,

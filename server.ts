@@ -22,7 +22,7 @@ const ai = new GoogleGenAI({
 
 /**
  * Resilient Gemini Content Generation
- * Handles temporary 503 (high demand) and 429 (rate limits) with automatic retry and model fallback.
+ * Handles temporary 503 (high demand) and 429 (rate limits) with fast intelligent model fallback and exponential jittered backoff.
  */
 async function callGeminiWithResilience(params: {
   contents: any;
@@ -51,14 +51,17 @@ async function callGeminiWithResilience(params: {
       } catch (err: any) {
         lastError = err;
         const errMsg = err?.message || String(err);
-        console.warn(`[Gemini Resilience] Model '${model}' attempt ${attempt}/${maxRetries} failed: ${errMsg}`);
-        
-        const isTransient = errMsg.includes("503") || errMsg.includes("429") || errMsg.includes("high demand") || errMsg.includes("UNAVAILABLE");
-        if (isTransient && attempt < maxRetries) {
-          // Exponential backoff wait
-          await new Promise((resolve) => setTimeout(resolve, 800 * attempt));
-        } else if (!isTransient) {
-          // Non-transient error on this model, break to try next model immediately
+        const isTransient503 = errMsg.includes("503") || errMsg.includes("high demand") || errMsg.includes("UNAVAILABLE");
+        const isRateLimit429 = errMsg.includes("429") || errMsg.includes("RESOURCE_EXHAUSTED");
+
+        if (isTransient503 || isRateLimit429) {
+          // If 503 high demand, immediately move to next fallback model if on last attempt or try once with jitter
+          if (attempt < maxRetries) {
+            const jitterDelay = 1000 * attempt + Math.floor(Math.random() * 500);
+            await new Promise((resolve) => setTimeout(resolve, jitterDelay));
+          }
+        } else {
+          // Non-transient error on this model (e.g. invalid config or model deprecation), switch to next model immediately
           break;
         }
       }
@@ -77,6 +80,9 @@ app.post("/api/analyze-stock", async (req, res) => {
       return res.status(400).json({ error: "Missing stock data" });
     }
 
+    // Helper for strict display of potentially undefined metrics (No Hallucination standard)
+    const fmt = (val: any, suffix = "") => (val !== undefined && val !== null && val !== "" ? `${val}${suffix}` : "N/A (ข้อมูลไม่พร้อม)");
+
     // Explicit Price Semantics Extraction (V1.0 Precision Standards)
     const currentLast = stockData.currentLast !== undefined ? stockData.currentLast : stockData.currentPrice;
     const previousClose = stockData.previousClose !== undefined ? stockData.previousClose : (stockData.prevClosePrice || currentLast);
@@ -85,57 +91,60 @@ app.post("/api/analyze-stock", async (req, res) => {
     const dataSource = stockData.dataSource || "Siamchart / SET Official";
     const marketStatusDesc = stockData.isMarketOpen ? "LIVE_MARKET_OPEN (Realtime Fluctuation)" : "MARKET_CLOSED_EOD (Official Daily Reference)";
 
+    const hasFundamentals = stockData.pe !== undefined || stockData.roe !== undefined || stockData.fairValue !== undefined;
+    const hasTechnicals = stockData.rsi !== undefined || stockData.support1 !== undefined;
+
     const prompt = `
-You are the Chief Investment Officer & Senior Technical Quantitative Strategist at "SBY Invest AI".
-Analyze the following stock combining Fundamental Analysis (What to Buy) and Technical Trading (When & How to Trade).
+You are SBY INVEST AI — Chief Investment Officer & Senior Quantitative Analyst operating strictly in **GROUNDED-ONLY MODE**.
 
-=== 1. PRICE DATA SNAPSHOT (SBY INVEST AI SPECIFICATION V1.0) ===
-- Symbol: ${stockData.symbol} (${stockData.name})
-- Market / Sector: ${stockData.market} / ${stockData.sector}
-- Current Last Price: ${currentLast} ${stockData.currency} (ราคาซื้อขายล่าสุดจริง — ใช้เป็นฐานคำนวณ Entry, SL, TP, Risk-Reward)
-- Previous Close: ${previousClose} ${stockData.currency} (ราคาปิดของวันทำการก่อนหน้า — ใช้คำนวณ % Change และเป็นฐานเปรียบเทียบ)
-- Official EOD Close: ${officialClose} ${stockData.currency} (ราคาปิดสิ้นวันของ Trade Date)
-- Price Date: ${priceDate}
-- Data Source: ${dataSource}
+=== STRICT GROUNDED-ONLY INTEGRITY RULES (MANDATORY) ===
+1. NEVER calculate, invent, extrapolate, simulate, or hallucinate financial metrics, ratios, prices, or targets (including Price, P/E, P/BV, ROE, D/E, RSI, EMA, Support, Resistance, Stop Loss, or Fair Value).
+2. ONLY interpret and explain the EXACT factual numbers provided in the DATA SNAPSHOT below.
+3. If any field is "N/A (ข้อมูลไม่พร้อม)" or missing/undefined, you MUST explicitly state in that section: "ข้อมูลไม่เพียงพอสำหรับวิเคราะห์รายการนี้" — NEVER guess, estimate, or fill in an approximate number.
+4. Use "Current Last" (${fmt(currentLast, ` ${stockData.currency}`)}) as the single ground-truth price for evaluating entry points and risk levels. NEVER confuse Previous Close with Current Last.
+
+=== 1. PRICE DATA SNAPSHOT ===
+- Symbol: ${stockData.symbol} (${stockData.name || stockData.symbol})
+- Market / Sector: ${stockData.market || "SET"} / ${stockData.sector || "N/A"}
+- Current Last Price: ${fmt(currentLast, ` ${stockData.currency}`)}
+- Previous Close: ${fmt(previousClose, ` ${stockData.currency}`)}
+- Official EOD Close: ${fmt(officialClose, ` ${stockData.currency}`)}
+- Price Date: ${priceDate} (Source: ${dataSource})
 - Market Status: ${marketStatusDesc}
-- Today's Change: ${stockData.change >= 0 ? '+' : ''}${stockData.change} (${stockData.changePercent >= 0 ? '+' : ''}${stockData.changePercent}%)
+- Today's Change: ${stockData.change !== undefined ? `${stockData.change >= 0 ? '+' : ''}${stockData.change}` : "N/A"} (${stockData.changePercent !== undefined ? `${stockData.changePercent >= 0 ? '+' : ''}${stockData.changePercent}%` : "N/A"})
 
-* MANDATORY RULES FOR AI:
-1. ALWAYS use "Current Last" (${currentLast} ${stockData.currency}) as the single ground-truth price for evaluating current entry points, Stop Loss distance, Take Profit targets, and Risk/Reward ratios.
-2. NEVER confuse "Previous Close" (${previousClose} ${stockData.currency}) with "Current Last".
-3. Calculate Stop Loss (SL) strictly relative to the Current Last / Key Support level.
+=== 2. FUNDAMENTAL & VALUATION METRICS (FACTS ONLY) ===
+* P/E Ratio: ${fmt(stockData.pe)} (Industry Avg: ${fmt(stockData.industryPe)})
+* P/BV: ${fmt(stockData.pbv)}
+* ROE: ${fmt(stockData.roe, "%")}
+* Dividend Yield: ${fmt(stockData.dividendYield, "%")}
+* Debt to Equity (D/E): ${fmt(stockData.de)}
+* Net Profit Margin: ${fmt(stockData.netMargin, "%")}
+* Revenue Growth (YoY): ${fmt(stockData.revenueGrowth, "%")}
+* Estimated Fair Value: ${fmt(stockData.fairValue, ` ${stockData.currency}`)} (Margin of Safety: ${fmt(stockData.marginOfSafety, "%")})
+* Fundamental Status: ${stockData.fundamentalStatus || (hasFundamentals ? "VERIFIED_AVAILABLE" : "FUNDAMENTAL_DATA_UNAVAILABLE")}
 
-=== 2. FUNDAMENTAL & VALUATION METRICS ===
-* P/E Ratio: ${stockData.pe} (Industry Avg: ${stockData.industryPe || "N/A"})
-* P/BV: ${stockData.pbv}
-* ROE: ${stockData.roe}%
-* Dividend Yield: ${stockData.dividendYield}%
-* Debt to Equity (D/E): ${stockData.de}
-* Net Profit Margin: ${stockData.netMargin}%
-* Revenue Growth (YoY): ${stockData.revenueGrowth}%
-* Estimated Fair Value: ${stockData.fairValue} ${stockData.currency} (Margin of Safety: ${stockData.marginOfSafety}%)
+=== 3. TECHNICAL TIMING & ACTION LEVELS (FACTS ONLY) ===
+* Trend: ${stockData.trend || "N/A"} (EMA20: ${fmt(stockData.ema20)}, EMA50: ${fmt(stockData.ema50)}, EMA200: ${fmt(stockData.ema200)})
+* RSI (14): ${fmt(stockData.rsi)}
+* MACD Signal: ${stockData.macdSignal || "N/A"}
+* Key Support: S1 ${fmt(stockData.support1)}, S2 ${fmt(stockData.support2)}
+* Key Resistance: R1 ${fmt(stockData.resistance1)}, R2 ${fmt(stockData.resistance2)}
+* System Stop Loss Level: ${fmt(stockData.stopLossPrice, ` ${stockData.currency}`)}
+* Target Price 1: ${fmt(stockData.targetPrice1, ` ${stockData.currency}`)}
+* Target Price 2: ${fmt(stockData.targetPrice2, ` ${stockData.currency}`)}
+* Current Technical Signal: ${stockData.technicalSignal || "N/A"}
 
-=== 3. TECHNICAL TIMING & ACTION LEVELS ===
-* Trend: ${stockData.trend} (Price vs EMA20: ${stockData.ema20}, EMA50: ${stockData.ema50}, EMA200: ${stockData.ema200})
-* RSI (14): ${stockData.rsi}
-* MACD Signal: ${stockData.macdSignal}
-* Key Support: S1 ${stockData.support1}, S2 ${stockData.support2}
-* Key Resistance: R1 ${stockData.resistance1}, R2 ${stockData.resistance2}
-* System Stop Loss Level: ${stockData.stopLossPrice} ${stockData.currency}
-* Target Price 1: ${stockData.targetPrice1} ${stockData.currency}
-* Target Price 2: ${stockData.targetPrice2} ${stockData.currency}
-* Current Technical Signal: ${stockData.technicalSignal}
-
-User query / extra context: ${customPrompt || "Generate a comprehensive SBY Invest AI Report."}
+User query / extra context: ${customPrompt || "วิเคราะห์ภาพรวมตามข้อมูลจริง"}
 
 Provide a structured Thai response with:
-1. **Fundamental Executive Verdict** (ประเมินคุณภาพธุรกิจ, ความถูกแพง, และความยั่งยืนของกำไร/เงินปันผล)
-2. **Technical Timing & Action Plan** (จังหวะเข้าซื้อ/รอ/ขาย, แนวรับแนวต้านสำคัญ, เงื่อนไขยืนยัน Trigger โดยอ้างอิง Current Last ${currentLast} ${stockData.currency})
-3. **Risk Management & Position Sizing Strategy** (จุด Stop Loss, อัตรา Risk/Reward, การแบ่งไม้ซื้อ)
-4. **Key Catalysts & Watchouts** (ปัจจัยบวกที่จะผลักดันราคา และความเสี่ยงที่ต้องเฝ้าระวัง)
-5. **Final SBY Invest AI Rating**: (STRONG BUY, ACCUMULATE, WAIT/WATCH, TAKE PROFIT, or STOP LOSS) with 1-sentence bottom-line advice.
+1. **Fundamental Executive Verdict** (วิเคราะห์เฉพาะข้อมูลที่มี หากเป็น N/A ให้ระบุ "ข้อมูลไม่เพียงพอสำหรับวิเคราะห์รายการนี้")
+2. **Technical Timing & Action Plan** (จังหวะเข้าซื้อ/รอ/ขาย อ้างอิงเฉพาะระดับราคาแนวรับแนวต้านที่ระบุไว้)
+3. **Risk Management & Position Sizing Strategy** (จุด Stop Loss และการบริหารความเสี่ยง)
+4. **Key Catalysts & Watchouts** (ปัจจัยที่ต้องติดตาม)
+5. **Final SBY Invest AI Rating**: (STRONG BUY, ACCUMULATE, WAIT/WATCH, TAKE PROFIT, STOP LOSS หรือ INSUFFICIENT_DATA) พร้อมบทสรุป 1 ประโยค
 
-Keep the tone professional, objective, highly analytical, actionable, and encouraging for smart investors. Use clear formatting with bullet points.
+Keep tone professional, disciplined, and strictly grounded in provided data.
 `;
 
     let analysisText = "";
@@ -146,39 +155,46 @@ Keep the tone professional, objective, highly analytical, actionable, and encour
         contents: prompt,
         config: {
           systemInstruction:
-            "You are SBY Invest AI - an expert investment analyst specializing in combining Fundamental Valuation and Technical Timing into practical, high-conviction trade setups for Thai and Global stock investors. Always distinguish Current Last from Previous Close, and respond in fluent, professional Thai.",
-          temperature: 0.7,
+            "You are SBY Invest AI running in Grounded-Only Mode. You MUST NEVER fabricate, calculate, or hallucinate financial numbers. You ONLY interpret provided data. If metrics are N/A or unavailable, state clearly 'ข้อมูลไม่เพียงพอสำหรับวิเคราะห์รายการนี้' without guessing.",
+          temperature: 0.2,
         },
       });
       analysisText = response.text || "";
     } catch (apiErr) {
       console.warn("AI Model calls exhausted, activating quantitative rule-based fallback analysis:", apiErr);
-      // Quantitative Rule-based Precision Fallback
-      const isUnderValued = (stockData.marginOfSafety || 0) > 10;
-      const isUptrend = stockData.trend === "UPTREND";
-      const rating = isUnderValued && isUptrend ? "STRONG BUY" : isUnderValued ? "ACCUMULATE" : isUptrend ? "BUY ON BREAKOUT" : "WAIT/WATCH";
       
-      analysisText = `### รายงานการวิเคราะห์เชิงปริมาณ SBY INVEST AI (Quantitative Summary)
+      const isUnderValued = stockData.marginOfSafety !== undefined && stockData.marginOfSafety > 10;
+      const isUptrend = stockData.trend === "UPTREND";
+      const rating = !hasFundamentals && !hasTechnicals 
+        ? "INSUFFICIENT_DATA" 
+        : isUnderValued && isUptrend 
+        ? "STRONG BUY" 
+        : isUnderValued 
+        ? "ACCUMULATE" 
+        : isUptrend 
+        ? "BUY ON BREAKOUT" 
+        : "WAIT/WATCH";
+      
+      analysisText = `### รายงานการวิเคราะห์เชิงปริมาณ SBY INVEST AI (Grounded Quantitative Summary)
 **หลักทรัพย์:** ${stockData.symbol} (${stockData.name || stockData.symbol}) | วันที่: ${priceDate}
 
 1. **Fundamental Executive Verdict (การประเมินมูลค่าและปัจจัยพื้นฐาน)**
-- **Valuation:** P/E อยู่ที่ **${stockData.pe} เท่า** (P/BV: **${stockData.pbv} เท่า**) อัตราส่วนผลตอบแทนต่อส่วนของผู้ถือหุ้น (ROE) อยู่ที่ **${stockData.roe}%**
-- **Margin of Safety (MOS):** ราคาปัจจุบัน ${currentLast} ${stockData.currency} เทียบกับราคาเหมาะสมที่ประเมิน ${stockData.fairValue} ${stockData.currency} มีส่วนลดความปลอดภัยอยู่ที่ **${stockData.marginOfSafety}%** (${isUnderValued ? 'มูลค่ามีส่วนลดน่าสนใจ' : 'อยู่ในระดับมูลค่าตึงตัว'})
-- **เงินปันผล & สุขภาพการเงิน:** Dividend Yield **${stockData.dividendYield}%** อัตราหนี้สินต่อทุน (D/E) **${stockData.de} เท่า**
+${hasFundamentals ? `- **Valuation:** P/E อยู่ที่ **${fmt(stockData.pe)} เท่า** (P/BV: **${fmt(stockData.pbv)} เท่า**) อัตราส่วนผลตอบแทนต่อส่วนของผู้ถือหุ้น (ROE) อยู่ที่ **${fmt(stockData.roe, "%")}**
+- **Margin of Safety (MOS):** ราคาปัจจุบัน ${fmt(currentLast, ` ${stockData.currency}`)} เทียบกับราคาเหมาะสม ${fmt(stockData.fairValue, ` ${stockData.currency}`)} ส่วนลดความปลอดภัย: **${fmt(stockData.marginOfSafety, "%")}**
+- **เงินปันผล & สุขภาพการเงิน:** Dividend Yield **${fmt(stockData.dividendYield, "%")}** อัตราหนี้สินต่อทุน (D/E) **${fmt(stockData.de)} เท่า**` : `- **สถานะงบการเงิน:** ข้อมูลไม่เพียงพอสำหรับวิเคราะห์รายการนี้ (อยู่ระหว่างรอเชื่อมต่อข้อมูล Fundamental จากตลาดหลักทรัพย์)`}
 
 2. **Technical Timing & Action Plan (จังหวะเข้าทำและแผนปฏิบัติการ)**
-- **สถานะแนวโน้ม:** โครงสร้างราคาปัจจุบันอยู่ในรูปแบบ **${stockData.trend}** (RSI: **${stockData.rsi}** | MACD: **${stockData.macdSignal}**)
-- **แนวรับสำคัญ:** S1 **${stockData.support1}** ${stockData.currency} / S2 **${stockData.support2}** ${stockData.currency}
-- **แนวต้านเป้าหมาย:** R1 **${stockData.resistance1}** ${stockData.currency} / R2 **${stockData.resistance2}** ${stockData.currency}
-- **กลยุทธ์การเทรด:** อ้างอิงราคาซื้อขายล่าสุด **${currentLast} ${stockData.currency}** แนะนำเข้าซื้อตามสัญญาณ **${stockData.technicalSignal || 'ACCUMULATE'}**
+${hasTechnicals ? `- **สถานะแนวโน้ม:** โครงสร้างราคาปัจจุบันอยู่ในรูปแบบ **${stockData.trend || 'N/A'}** (RSI: **${fmt(stockData.rsi)}** | MACD: **${stockData.macdSignal || 'N/A'}**)
+- **แนวรับสำคัญ:** S1 **${fmt(stockData.support1)}** ${stockData.currency} / S2 **${fmt(stockData.support2)}** ${stockData.currency}
+- **แนวต้านเป้าหมาย:** R1 **${fmt(stockData.resistance1)}** ${stockData.currency} / R2 **${fmt(stockData.resistance2)}** ${stockData.currency}
+- **กลยุทธ์การเทรด:** อ้างอิงราคาซื้อขายล่าสุด **${fmt(currentLast, ` ${stockData.currency}`)}** สัญญาณทางเทคนิค: **${stockData.technicalSignal || 'WAIT'}**` : `- **สถานะทางเทคนิค:** ข้อมูลไม่เพียงพอสำหรับวิเคราะห์รายการนี้ (ต้องมีประวัติราคาอย่างน้อย 20-50 แท่งเทียน)`}
 
 3. **Risk Management & Position Sizing (การบริหารความเสี่ยง)**
-- **จุดตัดขาดทุน (Stop Loss):** **${stockData.stopLossPrice} ${stockData.currency}** (รักษาวินัยอย่างเคร่งครัดหากราคาหลุดแนวรับ S2)
-- **เป้าหมายทำกำไร (Take Profit):** TP1 **${stockData.targetPrice1}** ${stockData.currency} | TP2 **${stockData.targetPrice2}** ${stockData.currency}
-- **สัดส่วนการแบ่งไม้:** แนะนำแบ่งไม้เข้า 2-3 ไม้ บริเวณแนวรับเพื่อควบคุมต้นทุนถัวเฉลี่ย
+- **จุดตัดขาดทุน (Stop Loss):** **${fmt(stockData.stopLossPrice, ` ${stockData.currency}`)}**
+- **เป้าหมายทำกำไร (Take Profit):** TP1 **${fmt(stockData.targetPrice1, ` ${stockData.currency}`)}** | TP2 **${fmt(stockData.targetPrice2, ` ${stockData.currency}`)}**
 
 4. **Final SBY Invest AI Rating:** **${rating}**
-- **คำแนะนำสรุป:** *${isUnderValued ? 'หุ้นคุณภาพดีมี Margin of Safety แนะนำสะสมตามแนวรับพร้อมควบคุมจุด Stop Loss' : 'เกาะติดสัญญาณทางเทคนิคและรอจังหวะย่อตัวเพื่อลดความเสี่ยง'}*`;
+- **คำแนะนำสรุป:** *${!hasFundamentals && !hasTechnicals ? 'ข้อมูลไม่เพียงพอสำหรับวิเคราะห์รายการนี้ กรุณาอัปเดตข้อมูลราคา EOD หรือเชื่อมต่อ API' : isUnderValued ? 'หุ้นคุณภาพดีมี Margin of Safety แนะนำสะสมตามแนวรับพร้อมควบคุมจุด Stop Loss' : 'เกาะติดสัญญาณทางเทคนิคและรอจังหวะย่อตัวเพื่อลดความเสี่ยง'}*`;
     }
 
     return res.json({ success: true, analysis: analysisText });
@@ -196,6 +212,8 @@ app.post("/api/chat-advisor", async (req, res) => {
   try {
     const { messages, currentStock } = req.body;
 
+    const fmt = (val: any, suffix = "") => (val !== undefined && val !== null && val !== "" ? `${val}${suffix}` : "N/A (ข้อมูลไม่พร้อม)");
+
     let stockContext = "General Investment Inquiries";
     if (currentStock) {
       const cLast = currentStock.currentLast !== undefined ? currentStock.currentLast : currentStock.currentPrice;
@@ -203,14 +221,14 @@ app.post("/api/chat-advisor", async (req, res) => {
       const pDate = currentStock.priceDate || new Date().toLocaleDateString('th-TH');
       const dSource = currentStock.dataSource || "Siamchart / SET Official";
 
-      stockContext = `Current Stock in Context:
-- Symbol: ${currentStock.symbol} (${currentStock.name})
-- Current Last Price: ${cLast} ${currentStock.currency} (ราคาปัจจุบัน)
-- Previous Close: ${pClose} ${currentStock.currency} (ราคาปิดวันก่อนหน้า)
+      stockContext = `Current Stock in Context (GROUNDED-ONLY MODE):
+- Symbol: ${currentStock.symbol} (${currentStock.name || currentStock.symbol})
+- Current Last Price: ${fmt(cLast, ` ${currentStock.currency}`)} (ราคาปัจจุบัน)
+- Previous Close: ${fmt(pClose, ` ${currentStock.currency}`)} (ราคาปิดวันก่อนหน้า)
 - Price Date: ${pDate} (Data Source: ${dSource})
-- PE: ${currentStock.pe}, ROE: ${currentStock.roe}%, Dividend: ${currentStock.dividendYield}%
-- Trend: ${currentStock.trend}, RSI: ${currentStock.rsi}, Fair Value: ${currentStock.fairValue}
-- Key Support: ${currentStock.support1}, Stop Loss: ${currentStock.stopLossPrice}, Target 1: ${currentStock.targetPrice1}`;
+- P/E: ${fmt(currentStock.pe)}, ROE: ${fmt(currentStock.roe, "%")}, Dividend: ${fmt(currentStock.dividendYield, "%")}
+- Trend: ${currentStock.trend || "N/A"}, RSI: ${fmt(currentStock.rsi)}, Fair Value: ${fmt(currentStock.fairValue, ` ${currentStock.currency}`)}
+- Key Support: ${fmt(currentStock.support1)}, Stop Loss: ${fmt(currentStock.stopLossPrice)}, Target 1: ${fmt(currentStock.targetPrice1)}`;
     }
 
     const lastMessage = messages[messages.length - 1]?.content || "สวัสดีครับ";
@@ -230,7 +248,10 @@ ${conversationHistory}
 User's Latest Question:
 ${lastMessage}
 
-Please answer clearly and concisely in Thai, providing concrete numerical levels (using Current Last as price base), strategic fundamental insights, and actionable trading rules wherever applicable.
+=== STRICT GROUNDED-ONLY INTEGRITY RULES ===
+1. NEVER invent, calculate, or hallucinate financial figures. If a requested metric is "N/A (ข้อมูลไม่พร้อม)" or missing, you MUST answer: "ข้อมูลไม่เพียงพอสำหรับวิเคราะห์รายการนี้".
+2. Only reference real factual numbers provided in Context above.
+3. Answer politely, concisely, and professionally in Thai.
 `;
 
     let reply = "";
@@ -241,14 +262,14 @@ Please answer clearly and concisely in Thai, providing concrete numerical levels
         contents: prompt,
         config: {
           systemInstruction:
-            "You are SBY Invest AI Advisor. Answer investor queries with high financial precision, combining fundamental logic and technical discipline. Always distinguish Current Last from Previous Close, and respond in polite, expert Thai.",
-          temperature: 0.6,
+            "You are SBY Invest AI Advisor running in Grounded-Only Mode. You MUST NEVER fabricate financial numbers. If metrics are missing or N/A, clearly respond 'ข้อมูลไม่เพียงพอสำหรับวิเคราะห์รายการนี้' without guessing.",
+          temperature: 0.2,
         },
       });
       reply = response.text || "ขออภัยครับ ระบบไม่สามารถประมวลผลคำตอบได้";
     } catch (err) {
       if (currentStock) {
-        reply = `สำหรับหุ้น **${currentStock.symbol}** (${currentStock.name || currentStock.symbol}):\n- ราคาล่าสุด: **${currentStock.currentLast || currentStock.currentPrice} ${currentStock.currency}**\n- แนวรับสำคัญ: **${currentStock.support1}** และ **${currentStock.support2}**\n- แนวต้านเป้าหมาย: **${currentStock.targetPrice1 || currentStock.resistance1}**\n- จุดตัดขาดทุน Stop Loss: **${currentStock.stopLossPrice}**\n- สัญญาณเทคนิคอล: **${currentStock.trend}** (RSI: ${currentStock.rsi})\n\nแนะนำให้ยึดกรอบแนวรับแนวต้านและรักษาวินัยการตัดขาดทุนตามแผนอย่างเคร่งครัดครับ`;
+        reply = `สำหรับหุ้น **${currentStock.symbol}** (${currentStock.name || currentStock.symbol}):\n- ราคาล่าสุด: **${fmt(currentStock.currentLast || currentStock.currentPrice, ` ${currentStock.currency}`)}**\n- แนวรับสำคัญ: **${fmt(currentStock.support1)}** / **${fmt(currentStock.support2)}**\n- แนวต้านเป้าหมาย: **${fmt(currentStock.targetPrice1 || currentStock.resistance1)}**\n- จุดตัดขาดทุน Stop Loss: **${fmt(currentStock.stopLossPrice)}**\n- สัญญาณเทคนิคอล: **${currentStock.trend || "N/A"}** (RSI: ${fmt(currentStock.rsi)})\n\n*(หมายเหตุ: หากข้อมูลใดเป็น N/A ให้ถือว่าข้อมูลไม่เพียงพอสำหรับวิเคราะห์รายการนั้น)*`;
       } else {
         reply = "ขออภัยครับ ขณะนี้ระบบประมวลผล AI กำลังปรับสมดุลการรับส่งข้อมูล กรุณาลองส่งคำถามใหม่อีกครั้ง หรือเลือกดูหุ้นจากรายการด้านบนได้ทันทีครับ";
       }
@@ -350,8 +371,12 @@ app.post("/api/generate-ai-portfolio", async (req, res) => {
     const { investorProfile, selectedStocks } = req.body;
 
     const prompt = `
-You are the Chief Investment Officer (CIO) and Senior Portfolio Strategist at "SBY Invest AI".
+You are SBY INVEST AI — Chief Investment Officer (CIO) operating in **GROUNDED-ONLY MODE**.
 An investor has requested an AI-driven personalized investment portfolio with the following parameters:
+
+=== STRICT GROUNDED-ONLY RULES ===
+1. Do NOT invent prices, P/E, or financial returns. Only analyze the provided portfolio structure.
+2. If any metric is N/A, do not guess. State "ข้อมูลไม่เพียงพอสำหรับวิเคราะห์รายการนี้" for that specific item.
 
 Investor Profile:
 - Total Capital: ${investorProfile.capital.toLocaleString()} ${investorProfile.currency}
@@ -365,7 +390,7 @@ Allocated Assets (5 to 8 Assets):
 ${selectedStocks
   .map(
     (s: any, idx: number) =>
-      `${idx + 1}. ${s.symbol} (${s.name}) - Weight: ${s.weightPercent}%, Price: ${s.entryPrice}, Target: ${s.targetPrice}, StopLoss: ${s.stopLossPrice}, Role: ${s.roleInPortfolio}, MOS: ${s.stock?.marginOfSafety}%`
+      `${idx + 1}. ${s.symbol} (${s.name || s.symbol}) - Weight: ${s.weightPercent}%, Price: ${s.entryPrice}, Target: ${s.targetPrice}, StopLoss: ${s.stopLossPrice}, Role: ${s.roleInPortfolio}, MOS: ${s.stock?.marginOfSafety !== undefined ? `${s.stock?.marginOfSafety}%` : "N/A"}`
   )
   .join("\n")}
 
@@ -374,7 +399,7 @@ Provide a high-conviction, professional investment strategy summary in Thai cove
 2. **คู่มือการเฝ้าติดตามตาม Period (Period-Specific Monitoring Tactics)**: สิ่งที่นักลงทุนต้องจับตาดูตลอดระยะเวลาที่ลงทุน (เช่น จุด Trailing Stop, การประกาศงบการเงิน, การ Rebalance เมื่อราคาแตะเป้าหมาย)
 3. **เกราะป้องกันความเสี่ยง (Risk Mitigation & Asset Protection)**: แผนรับมือหากตลาดเกิดความผันผวนหรือปรับฐานฉับพลัน
 
-Keep the tone encouraging, authoritative, disciplined, and institutional-grade. Output clear markdown.
+Keep tone disciplined, grounded in data, and institutional-grade. Output clear markdown.
 `;
 
     let commentary = "";
@@ -385,8 +410,8 @@ Keep the tone encouraging, authoritative, disciplined, and institutional-grade. 
         contents: prompt,
         config: {
           systemInstruction:
-            "You are SBY Invest AI - Chief Investment Strategist. Deliver concise, actionable, and mathematically grounded portfolio advice for Thai and Global investors in Thai language.",
-          temperature: 0.6,
+            "You are SBY Invest AI - Chief Investment Strategist operating in Grounded-Only Mode. NEVER invent financial numbers. Deliver concise, actionable, and mathematically grounded portfolio advice in Thai.",
+          temperature: 0.2,
         },
       });
       commentary = response.text || "";
@@ -445,8 +470,12 @@ app.post("/api/audit-user-portfolio", async (req, res) => {
     }).join("\n\n");
 
     const prompt = `
-You are the Chief Investment Officer (CIO) and Master Quantitative Portfolio Analyst at "SBY Invest AI".
-An investor has built and managed their OWN investment portfolio and requested a deep, elite-level audit and critique from you.
+You are SBY INVEST AI — Master Quantitative Portfolio Analyst operating in **GROUNDED-ONLY MODE**.
+An investor has built and managed their OWN investment portfolio and requested a deep audit and critique.
+
+=== STRICT GROUNDED-ONLY INTEGRITY RULES ===
+1. Only evaluate the actual data numbers provided below. NEVER invent unprovided financial metrics.
+2. If any metric is N/A, state "ข้อมูลไม่เพียงพอสำหรับวิเคราะห์รายการนี้" for that specific analysis item.
 
 === INVESTOR PROFILE & GOALS (เกณฑ์การลงทุนเดียวกัน) ===
 - Total Allocated Capital: ${investorProfile.capital.toLocaleString()} ${investorProfile.currency}

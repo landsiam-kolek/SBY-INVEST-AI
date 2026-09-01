@@ -36,9 +36,9 @@ export function roundToSetTick(price: number): number {
  * Calculates Fibonacci Retracements and Extensions for Golden Pocket Analysis
  */
 export function calculateFibonacciLevels(currentPrice: number, high52w?: number, low52w?: number): FibonacciPrecisionLevels {
-  const high = high52w && high52w > currentPrice ? high52w : currentPrice * 1.18;
-  const low = low52w && low52w < currentPrice ? low52w : currentPrice * 0.82;
-  const range = high - low;
+  const high = (high52w && high52w > 0) ? high52w : currentPrice;
+  const low = (low52w && low52w > 0) ? low52w : currentPrice;
+  const range = high > low ? high - low : 0;
 
   const fib0 = roundToSetTick(low);
   const fib236 = roundToSetTick(low + range * 0.236);

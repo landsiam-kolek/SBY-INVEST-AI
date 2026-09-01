@@ -1509,21 +1509,6 @@ export function createDynamicStockData(
   const changePercent = 0.00;
   const change = 0.00;
 
-  const fairValue = Number((price * 1.10).toFixed(2));
-  const marginOfSafety = Number((((fairValue - price) / fairValue) * 100).toFixed(2));
-
-  const support1 = Number((price * 0.96).toFixed(2));
-  const support2 = Number((price * 0.92).toFixed(2));
-  const resistance1 = Number((price * 1.05).toFixed(2));
-  const resistance2 = Number((price * 1.12).toFixed(2));
-  const stopLossPrice = Number((price * 0.94).toFixed(2));
-  const targetPrice1 = resistance1;
-  const targetPrice2 = resistance2;
-
-  const ema20 = Number((price * 0.985).toFixed(2));
-  const ema50 = Number((price * 0.965).toFixed(2));
-  const ema200 = Number((price * 0.92).toFixed(2));
-
   const isThai = (market as string) === 'SET' || (market as string) === 'mai';
   const dataQuality: DataQualityGrade = isThai ? 'GRADE_B' : 'GRADE_D';
   const providerStatus: ProviderStatus = isThai ? 'VERIFIED_EOD_AVAILABLE' : 'PROVIDER_NOT_CONFIGURED';
@@ -1548,43 +1533,43 @@ export function createDynamicStockData(
     providerStatus,
     change,
     changePercent,
-    high52w: Number((price * 1.20).toFixed(2)),
-    low52w: Number((price * 0.80).toFixed(2)),
-    volume: 10000000,
-    avgVolume30d: 10000000,
+    high52w: price,
+    low52w: price,
+    volume: 0,
+    avgVolume30d: 0,
     
-    // Fundamental
-    pe: 18.5,
-    industryPe: 22.0,
-    pbv: 2.2,
-    roe: 14.5,
-    dividendYield: 3.2,
-    de: 1.2,
-    netMargin: 12.5,
-    revenueGrowth: 9.8,
-    eps: Number((price / 18.5).toFixed(2)),
-    fairValue,
-    marginOfSafety,
-    valuationStatus: 'FAIR',
-    fundamentalScore: 75,
-    dcfValue: Number((fairValue * 1.02).toFixed(2)),
-    grahamValue: Number((fairValue * 0.98).toFixed(2)),
+    // Fundamental (Zero Fabrication: undefined if provider data is unverified)
+    pe: undefined,
+    industryPe: undefined,
+    pbv: undefined,
+    roe: undefined,
+    dividendYield: undefined,
+    de: undefined,
+    netMargin: undefined,
+    revenueGrowth: undefined,
+    eps: undefined,
+    fairValue: undefined,
+    marginOfSafety: undefined,
+    valuationStatus: undefined,
+    fundamentalScore: undefined,
+    dcfValue: undefined,
+    grahamValue: undefined,
 
-    // Technical
+    // Technical (Zero Fabrication: undefined unless real candles exist)
     trend: 'SIDEWAY',
-    technicalScore: 70,
-    rsi: 50.0,
+    technicalScore: undefined,
+    rsi: undefined,
     macdSignal: 'NEUTRAL',
-    ema20,
-    ema50,
-    ema200,
-    support1,
-    support2,
-    resistance1,
-    resistance2,
-    stopLossPrice,
-    targetPrice1,
-    targetPrice2,
+    ema20: undefined,
+    ema50: undefined,
+    ema200: undefined,
+    support1: undefined,
+    support2: undefined,
+    resistance1: undefined,
+    resistance2: undefined,
+    stopLossPrice: undefined,
+    targetPrice1: undefined,
+    targetPrice2: undefined,
     technicalSignal: 'WAIT',
 
     // Qualitative
@@ -1595,11 +1580,11 @@ export function createDynamicStockData(
       'สามารถนำเข้าประวัติราคา EOD หรืออัปเดตงบการเงินเพิ่มเติมได้'
     ],
     risks: [
-      'ยังไม่มีรายงานงบการเงินอย่างเป็นทางการในระบบ',
+      'ยังไม่มีรายงานงบการเงินอย่างเป็นทางการในระบบ (Fundamental Data Unavailable)',
       'ควรตรวจสอบความเสี่ยงก่อนตัดสินใจลงทุน'
     ],
     actionPlanSummary: `ราคาปิดอ้างอิง EOD ${price} ${currency} สถานะข้อมูล ${dataQuality} รอยืนยันสัญญาณเทคนิคอลและงบการเงิน`,
-    candles: generateCandles(price, 'SIDEWAY', 0.015, 60, 2, sym),
+    candles: [],
   };
 }
 

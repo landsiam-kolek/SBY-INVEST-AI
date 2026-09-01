@@ -162,41 +162,41 @@ function generateCustomStockData(
     sector: sector || 'General / User Defined',
     currency: currency || 'THB',
     currentPrice,
-    change: Number((currentPrice * 0.008).toFixed(2)),
-    changePercent: 0.8,
-    high52w: Number((currentPrice * 1.25).toFixed(2)),
-    low52w: Number((currentPrice * 0.75).toFixed(2)),
-    volume: 3500000,
-    avgVolume30d: 4200000,
-    pe: peInput || 16.5,
-    industryPe: 18.0,
-    pbv: 1.8,
-    roe: 14.5,
-    dividendYield: 3.8,
-    de: 0.85,
-    netMargin: 12.5,
-    revenueGrowth: 8.5,
-    eps: Number((currentPrice / (peInput || 16.5)).toFixed(2)),
-    fairValue: targetPrice || Number((currentPrice * 1.18).toFixed(2)),
+    change: 0,
+    changePercent: 0,
+    high52w: currentPrice,
+    low52w: currentPrice,
+    volume: 0,
+    avgVolume30d: 0,
+    pe: peInput,
+    industryPe: undefined,
+    pbv: undefined,
+    roe: undefined,
+    dividendYield: undefined,
+    de: undefined,
+    netMargin: undefined,
+    revenueGrowth: undefined,
+    eps: (peInput && peInput > 0) ? Number((currentPrice / peInput).toFixed(2)) : undefined,
+    fairValue: targetPrice || undefined,
     marginOfSafety: mos,
-    valuationStatus: mos > 15 ? 'UNDERVALUED' : mos < -5 ? 'OVERVALUED' : 'FAIR',
-    fundamentalScore: mos > 15 ? 82 : 72,
-    trend: trendInput || (currentPrice >= stopLossPrice ? 'UPTREND' : 'SIDEWAY'),
-    technicalScore: 75,
-    rsi: 52,
-    macdSignal: 'BULLISH_CROSSOVER',
-    ema20: Number((currentPrice * 0.99).toFixed(2)),
-    ema50: Number((currentPrice * 0.96).toFixed(2)),
-    ema200: Number((currentPrice * 0.92).toFixed(2)),
-    support1: stopLossPrice || Number((currentPrice * 0.95).toFixed(2)),
-    support2: Number((currentPrice * 0.90).toFixed(2)),
-    resistance1: targetPrice || Number((currentPrice * 1.10).toFixed(2)),
-    resistance2: Number((currentPrice * 1.18).toFixed(2)),
-    stopLossPrice: stopLossPrice || Number((currentPrice * 0.93).toFixed(2)),
-    targetPrice1: targetPrice || Number((currentPrice * 1.15).toFixed(2)),
-    targetPrice2: Number((currentPrice * 1.25).toFixed(2)),
-    technicalSignal: 'BUY_ON_DIP',
-    compositeRating: 'BUY',
+    valuationStatus: mos !== undefined ? (mos > 15 ? 'UNDERVALUED' : mos < -5 ? 'OVERVALUED' : 'FAIR') : undefined,
+    fundamentalScore: undefined,
+    trend: trendInput || 'SIDEWAY',
+    technicalScore: undefined,
+    rsi: undefined,
+    macdSignal: 'NEUTRAL',
+    ema20: undefined,
+    ema50: undefined,
+    ema200: undefined,
+    support1: stopLossPrice || undefined,
+    support2: undefined,
+    resistance1: targetPrice || undefined,
+    resistance2: undefined,
+    stopLossPrice: stopLossPrice || undefined,
+    targetPrice1: targetPrice || undefined,
+    targetPrice2: undefined,
+    technicalSignal: 'WAIT',
+    compositeRating: undefined,
     businessDescription: `สินทรัพย์ ${cleanSymbol} (${cleanName}) ในหมวด ${sector || 'ทั่วไป'}`,
     strengths: [
       `โครงสร้างและเป้าหมายราคาถูกกำหนดโดยผู้ใช้ที่ ${targetPrice} ${currency}`,
@@ -284,11 +284,11 @@ export const MyPortfolioTracker: React.FC<MyPortfolioTrackerProps> = ({
     const cleanSymbol = symbol.toUpperCase().trim() || 'CPALL';
     const matched = allStocks.find((s) => s.symbol.toUpperCase() === cleanSymbol);
     const price = matched?.currentPrice || 50.0;
-    const fair = matched?.fairValue || Number((price * 1.18).toFixed(2));
-    const mos = matched?.marginOfSafety !== undefined ? matched.marginOfSafety : 15;
-    const tp = matched?.targetPrice1 || Number((price * 1.15).toFixed(2));
-    const sl = matched?.stopLossPrice || Number((price * 0.93).toFixed(2));
-    const rr = Number(((tp - price) / Math.max(0.01, price - sl)).toFixed(2));
+    const fair = matched?.fairValue;
+    const mos = matched?.marginOfSafety;
+    const tp = matched?.targetPrice1 || matched?.resistance1 || price;
+    const sl = matched?.stopLossPrice || matched?.support1 || price;
+    const rr = tp > price && sl < price ? Number(((tp - price) / (price - sl)).toFixed(2)) : 1.5;
     const defaultCapitalShare = (investorProfile.capital || 500000) * 0.2;
     const defaultShares = Math.max(100, Math.floor(defaultCapitalShare / price / 100) * 100 || Math.floor(defaultCapitalShare / price));
 
@@ -325,10 +325,10 @@ export const MyPortfolioTracker: React.FC<MyPortfolioTrackerProps> = ({
         currency: p.stockData?.currency || 'THB',
         lastClosePrice: p.stockData?.currentPrice || p.entryPrice,
         entryPrice: p.entryPrice,
-        fairValue: p.stockData?.fairValue || Number((p.entryPrice * 1.18).toFixed(2)),
-        marginOfSafety: p.stockData?.marginOfSafety ?? 15,
+        fairValue: p.stockData?.fairValue,
+        marginOfSafety: p.stockData?.marginOfSafety,
         trend: p.stockData?.trend || 'UPTREND',
-        rsi: p.stockData?.rsi || 52,
+        rsi: p.stockData?.rsi,
         stopLossPrice: p.stopLossPrice,
         targetPrice: p.targetPrice,
         riskRewardRatio: Number(((p.targetPrice - p.entryPrice) / Math.max(0.01, p.entryPrice - p.stopLossPrice)).toFixed(2)),
@@ -342,10 +342,10 @@ export const MyPortfolioTracker: React.FC<MyPortfolioTrackerProps> = ({
     return defaultStarterSymbols.map((sym, idx) => {
       const matched = allStocks.find((s) => s.symbol === sym) || allStocks[idx] || allStocks[0];
       const price = matched?.currentPrice || 50.0;
-      const fair = matched?.fairValue || Number((price * 1.2).toFixed(2));
-      const mos = matched?.marginOfSafety ?? 18;
-      const tp = matched?.targetPrice1 || Number((price * 1.15).toFixed(2));
-      const sl = matched?.stopLossPrice || Number((price * 0.93).toFixed(2));
+      const fair = matched?.fairValue;
+      const mos = matched?.marginOfSafety;
+      const tp = matched?.targetPrice1 || matched?.resistance1 || price;
+      const sl = matched?.stopLossPrice || matched?.support1 || price;
       const defaultShares = Math.max(100, Math.floor(((investorProfile.capital || 500000) * 0.22) / price / 100) * 100);
 
       return {
@@ -516,9 +516,9 @@ export const MyPortfolioTracker: React.FC<MyPortfolioTrackerProps> = ({
     setCustomSector(stock.sector);
     setCustomCurrency((stock.currency as any) || 'THB');
     setEntryPrice(stock.currentPrice);
-    setTargetPrice(stock.targetPrice1 || Number((stock.currentPrice * 1.15).toFixed(2)));
-    setStopLossPrice(stock.stopLossPrice || Number((stock.currentPrice * 0.93).toFixed(2)));
-    setCustomMOS(stock.marginOfSafety || 15);
+    setTargetPrice(stock.targetPrice1 || stock.resistance1 || stock.currentPrice);
+    setStopLossPrice(stock.stopLossPrice || stock.support1 || stock.currentPrice);
+    setCustomMOS(stock.marginOfSafety || 0);
     setSelectedStockSymbol(stock.symbol);
 
     if (stock.fundamentalScore >= 80 && stock.dividendYield >= 4) {
@@ -577,8 +577,8 @@ export const MyPortfolioTracker: React.FC<MyPortfolioTrackerProps> = ({
 
   const handleSyncPriceTargets = () => {
     if (entryPrice > 0) {
-      setTargetPrice(Number((entryPrice * 1.15).toFixed(2)));
-      setStopLossPrice(Number((entryPrice * 0.93).toFixed(2)));
+      setTargetPrice(entryPrice);
+      setStopLossPrice(entryPrice);
     }
   };
 
@@ -643,14 +643,14 @@ export const MyPortfolioTracker: React.FC<MyPortfolioTrackerProps> = ({
   // Matrix Table Row Operations
   const applyStockToMatrixRow = (rowId: string, stock: StockData) => {
     const price = stock.currentPrice;
-    const tp = stock.targetPrice1 || Number((price * 1.15).toFixed(2));
-    const sl = stock.stopLossPrice || Number((price * 0.93).toFixed(2));
-    const rr = Number(((tp - price) / Math.max(0.01, price - sl)).toFixed(2));
+    const tp = stock.targetPrice1 || stock.resistance1 || price;
+    const sl = stock.stopLossPrice || stock.support1 || price;
+    const rr = tp > price && sl < price ? Number(((tp - price) / (price - sl)).toFixed(2)) : 1.5;
 
     let tag: UserStrategyTag = 'GROWTH_MOMENTUM';
-    if (stock.fundamentalScore >= 80 && stock.dividendYield >= 4) {
+    if (stock.fundamentalScore && stock.fundamentalScore >= 80 && stock.dividendYield && stock.dividendYield >= 4) {
       tag = 'DIVIDEND_INCOME';
-    } else if (stock.fundamentalScore >= 78) {
+    } else if (stock.fundamentalScore && stock.fundamentalScore >= 78) {
       tag = 'VALUE_INVESTING';
     } else if (stock.trend === 'UPTREND') {
       tag = 'GROWTH_MOMENTUM';
@@ -671,10 +671,10 @@ export const MyPortfolioTracker: React.FC<MyPortfolioTrackerProps> = ({
           currency: stock.currency || 'THB',
           lastClosePrice: price,
           entryPrice: price,
-          fairValue: stock.fairValue || Number((price * 1.18).toFixed(2)),
-          marginOfSafety: stock.marginOfSafety !== undefined ? stock.marginOfSafety : 15,
+          fairValue: stock.fairValue,
+          marginOfSafety: stock.marginOfSafety,
           trend: stock.trend || 'UPTREND',
-          rsi: stock.rsi || 52,
+          rsi: stock.rsi,
           stopLossPrice: sl,
           targetPrice: tp,
           riskRewardRatio: rr,
@@ -713,9 +713,9 @@ export const MyPortfolioTracker: React.FC<MyPortfolioTrackerProps> = ({
     setMatrixRows((prev) =>
       prev.map((r) => {
         if (r.id !== rowId) return r;
-        const sl = r.stopLossPrice || Number((val * 0.93).toFixed(2));
-        const tp = r.targetPrice || Number((val * 1.15).toFixed(2));
-        const rr = Number(((tp - val) / Math.max(0.01, val - sl)).toFixed(2));
+        const sl = r.stopLossPrice || val;
+        const tp = r.targetPrice || val;
+        const rr = tp > val && val > sl ? Number(((tp - val) / (val - sl)).toFixed(2)) : r.riskRewardRatio;
         return {
           ...r,
           entryPrice: val,
@@ -986,10 +986,10 @@ export const MyPortfolioTracker: React.FC<MyPortfolioTrackerProps> = ({
       currency: p.stockData?.currency || 'THB',
       lastClosePrice: p.stockData?.currentPrice || p.entryPrice,
       entryPrice: p.entryPrice,
-      fairValue: p.stockData?.fairValue || Number((p.entryPrice * 1.18).toFixed(2)),
-      marginOfSafety: p.stockData?.marginOfSafety ?? 15,
+      fairValue: p.stockData?.fairValue,
+      marginOfSafety: p.stockData?.marginOfSafety,
       trend: p.stockData?.trend || 'UPTREND',
-      rsi: p.stockData?.rsi || 52,
+      rsi: p.stockData?.rsi,
       stopLossPrice: p.stopLossPrice,
       targetPrice: p.targetPrice,
       riskRewardRatio: Number(((p.targetPrice - p.entryPrice) / Math.max(0.01, p.entryPrice - p.stopLossPrice)).toFixed(2)),

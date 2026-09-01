@@ -211,8 +211,8 @@ export const AIPortfolioBuilder: React.FC<AIPortfolioBuilderProps> = ({
     setEditSelectedSymbol(item.stock.symbol);
     setEditWeight(item.weightPercent);
     setEditEntryPrice(item.entryPrice || item.stock.currentPrice);
-    setEditTargetPrice(item.targetPrice || item.stock.targetPrice1 || Number((item.entryPrice * 1.15).toFixed(2)));
-    setEditStopLossPrice(item.stopLossPrice || item.stock.stopLossPrice || Number((item.entryPrice * 0.93).toFixed(2)));
+    setEditTargetPrice(item.targetPrice || item.stock.targetPrice1 || item.stock.resistance1 || item.entryPrice);
+    setEditStopLossPrice(item.stopLossPrice || item.stock.stopLossPrice || item.stock.support1 || item.entryPrice);
     setEditRole(item.roleInPortfolio);
     setEditStockSearch('');
   };
@@ -273,8 +273,8 @@ export const AIPortfolioBuilder: React.FC<AIPortfolioBuilderProps> = ({
     }
 
     const entry = stockToAdd.currentPrice;
-    const target = stockToAdd.targetPrice1 || Number((entry * 1.15).toFixed(2));
-    const stopLoss = stockToAdd.stopLossPrice || Number((entry * 0.93).toFixed(2));
+    const target = stockToAdd.targetPrice1 || stockToAdd.resistance1 || entry;
+    const stopLoss = stockToAdd.stopLossPrice || stockToAdd.support1 || entry;
     
     // Equal distribution for new stock
     const newCount = portfolio.items.length + 1;
@@ -289,7 +289,7 @@ export const AIPortfolioBuilder: React.FC<AIPortfolioBuilderProps> = ({
       stock: stockToAdd,
       weightPercent: newWeight,
       allocatedCapital: Math.round((capital * newWeight) / 100),
-      recommendedBuyZone: `${(entry * 0.985).toFixed(2)} - ${(entry * 1.01).toFixed(2)}`,
+      recommendedBuyZone: stockToAdd.support1 ? `${stockToAdd.support1.toFixed(2)} - ${entry.toFixed(2)}` : `${entry.toFixed(2)}`,
       recommendedShares: stockToAdd.currency === 'THB' ? Math.max(100, Math.floor(((capital * newWeight) / 100) / entry / 100) * 100) : Math.max(1, Math.floor(((capital * newWeight) / 100) / entry)),
       entryPrice: entry,
       targetPrice: target,
@@ -1328,8 +1328,8 @@ ${portfolio.items
                       onClick={() => {
                         setEditSelectedSymbol(s.symbol);
                         setEditEntryPrice(s.currentPrice);
-                        setEditTargetPrice(s.targetPrice1 || Number((s.currentPrice * 1.15).toFixed(2)));
-                        setEditStopLossPrice(s.stopLossPrice || Number((s.currentPrice * 0.93).toFixed(2)));
+                        setEditTargetPrice(s.targetPrice1 || s.resistance1 || s.currentPrice);
+                        setEditStopLossPrice(s.stopLossPrice || s.support1 || s.currentPrice);
                       }}
                       className={`p-2 rounded-lg text-left transition-all border cursor-pointer ${
                         editSelectedSymbol.toUpperCase() === s.symbol.toUpperCase()

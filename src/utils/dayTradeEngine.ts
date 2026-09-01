@@ -1,54 +1,99 @@
 import { StockData, DayTradeSetup, DayTradeTimeframe, DayTradeIndicators, DayTradePortfolio, AIRiskAudit } from '../types';
+import { getSetTickSize, roundToSetTick } from './technicalAnalysis';
+
+/**
+ * Calculates exponential moving average from numeric price series
+ */
+export function calculateSeriesEMA(prices: number[], period: number): number | undefined {
+  if (!prices || prices.length < period) return undefined;
+  const k = 2 / (period + 1);
+  let ema = prices.slice(0, period).reduce((sum, p) => sum + p, 0) / period;
+  for (let i = period; i < prices.length; i++) {
+    ema = prices[i] * k + ema * (1 - k);
+  }
+  return Number(ema.toFixed(2));
+}
+
+/**
+ * Calculates Average True Range (ATR) from historical price candles
+ */
+export function calculateCandleATR(stock: StockData, period: number = 14): number | undefined {
+  const candles = stock.candles;
+  if (!candles || candles.length < period + 1) return undefined;
+  const trs: number[] = [];
+  for (let i = 1; i < candles.length; i++) {
+    const h = candles[i].high;
+    const l = candles[i].low;
+    const prevC = candles[i - 1].close;
+    const tr = Math.max(h - l, Math.abs(h - prevC), Math.abs(l - prevC));
+    trs.push(tr);
+  }
+  let atr = trs.slice(0, period).reduce((sum, v) => sum + v, 0) / period;
+  for (let i = period; i < trs.length; i++) {
+    atr = (atr * (period - 1) + trs[i]) / period;
+  }
+  return Number(atr.toFixed(2));
+}
 
 /**
  * Calculates short-term technical indicators tailored for Day Trade & Fast Swing
+ * Zero-Fabrication Standard: Computes from real candles or verified stock fields.
  */
 export function calculateDayTradeIndicators(stock: StockData): DayTradeIndicators {
   const current = stock.currentPrice;
   const candles = stock.candles || [];
+  const closes = candles.map((c) => c.close);
   
-  // Synthetic / Derived EMAs for intraday/short-term
-  const ema5 = Number((current * (stock.trend === 'UPTREND' ? 0.992 : 1.008)).toFixed(2));
-  const ema10 = Number((current * (stock.trend === 'UPTREND' ? 0.985 : 1.015)).toFixed(2));
-  const ema25 = Number((current * (stock.trend === 'UPTREND' ? 0.972 : 1.028)).toFixed(2));
+  // Real EMA calculation from candle closes if available; fallback to verified stock EMAs
+  const ema5 = calculateSeriesEMA(closes, 5);
+  const ema10 = calculateSeriesEMA(closes, 10);
+  const ema25 = calculateSeriesEMA(closes, 25) || stock.ema20;
 
   let emaTrend: 'STRONG_BULLISH' | 'BULLISH' | 'BEARISH' | 'NEUTRAL' = 'NEUTRAL';
-  if (current > ema5 && ema5 > ema10 && ema10 > ema25) {
-    emaTrend = 'STRONG_BULLISH';
-  } else if (current > ema10) {
+  if (ema5 !== undefined && ema10 !== undefined && ema25 !== undefined) {
+    if (current > ema5 && ema5 > ema10 && ema10 > ema25) {
+      emaTrend = 'STRONG_BULLISH';
+    } else if (current > ema10) {
+      emaTrend = 'BULLISH';
+    } else if (current < ema10 && current < ema25) {
+      emaTrend = 'BEARISH';
+    }
+  } else if (stock.trend === 'UPTREND') {
     emaTrend = 'BULLISH';
-  } else if (current < ema10 && current < ema25) {
+  } else if (stock.trend === 'DOWNTREND') {
     emaTrend = 'BEARISH';
   }
 
   // RSI status
-  const rsi = stock.rsi || 52;
+  const rsi = stock.rsi;
   let rsiStatus: 'OVERSOLD_DIP' | 'SUPER_MOMENTUM' | 'HEALTHY_BULL' | 'OVERBOUGHT_DANGER' | 'NEUTRAL' = 'NEUTRAL';
-  if (rsi < 35) {
-    rsiStatus = 'OVERSOLD_DIP';
-  } else if (rsi >= 65 && rsi < 78) {
-    rsiStatus = 'SUPER_MOMENTUM';
-  } else if (rsi >= 78) {
-    rsiStatus = 'OVERBOUGHT_DANGER';
-  } else if (rsi >= 50 && rsi < 65) {
-    rsiStatus = 'HEALTHY_BULL';
+  if (rsi !== undefined) {
+    if (rsi < 35) {
+      rsiStatus = 'OVERSOLD_DIP';
+    } else if (rsi >= 65 && rsi < 78) {
+      rsiStatus = 'SUPER_MOMENTUM';
+    } else if (rsi >= 78) {
+      rsiStatus = 'OVERBOUGHT_DANGER';
+    } else if (rsi >= 50 && rsi < 65) {
+      rsiStatus = 'HEALTHY_BULL';
+    }
   }
 
   // Volume Surge Ratio
-  const avgVol = stock.avgVolume30d || stock.volume || 1000000;
-  const volSurge = Math.round(((stock.volume / Math.max(1, avgVol * 0.2)) * 100) - 100);
-  const volumeSurgePercent = Math.max(15, Math.min(450, volSurge));
+  const avgVol = stock.avgVolume30d || stock.volume || 1;
+  const volSurge = avgVol > 0 ? Math.round(((stock.volume / Math.max(1, avgVol * 0.2)) * 100) - 100) : 0;
+  const volumeSurgePercent = Math.max(0, Math.min(450, volSurge));
 
   // MACD Status
   let macdStatus: 'BULLISH_CROSS' | 'HISTOGRAM_POSITIVE' | 'BEARISH' = 'HISTOGRAM_POSITIVE';
   if (stock.macdSignal === 'BULLISH_CROSSOVER') {
     macdStatus = 'BULLISH_CROSS';
-  } else if (stock.trend === 'DOWNTREND') {
+  } else if (stock.macdSignal === 'BEARISH_CROSSOVER' || stock.trend === 'DOWNTREND') {
     macdStatus = 'BEARISH';
   }
 
-  // ATR estimate (2.5% to 4.5% daily range)
-  const volatilityATR = Number((current * 0.032).toFixed(2));
+  // Real ATR from candles, or undefined if no candle history
+  const volatilityATR = calculateCandleATR(stock, 14);
 
   return {
     emaTrend,
@@ -186,51 +231,57 @@ export function generateDayTradeSetup(
     signalType = 'EMA_PULLBACK';
   }
 
-  // Calculate Entry, Stop Loss & Target depending on Timeframe
+  // Calculate Entry, Stop Loss & Target using exact SET Tick Sizes and actual stock levels
+  const tick = getSetTickSize(current);
   let entryPrice = current;
   let entryZone = '';
-  let slPercent = 2.5; // default 2.5% risk
-  let tp1Percent = 5.5; // default 5.5% reward (R:R > 1:2.2)
-  let tp2Percent = 9.0; // default 9.0% reward
 
   if (timeframe === '1_DAY') {
-    // Intraday Scalp: Tighter SL, fast TP
-    slPercent = 1.8;
-    tp1Percent = 3.8;
-    tp2Percent = 6.2;
-    if (signalType === 'EMA_PULLBACK') {
-      entryPrice = Number((current * 0.995).toFixed(2));
-      entryZone = `${(entryPrice * 0.997).toFixed(2)} - ${entryPrice.toFixed(2)}`;
+    // Intraday Scalp: Exact tick offsets
+    if (signalType === 'EMA_PULLBACK' && stock.support1 && stock.support1 <= current) {
+      entryPrice = roundToSetTick(stock.support1);
+      entryZone = `${roundToSetTick(entryPrice - tick)} - ${entryPrice.toFixed(2)}`;
     } else {
       entryPrice = current;
-      entryZone = `${current.toFixed(2)} - ${(current * 1.005).toFixed(2)}`;
+      entryZone = `${entryPrice.toFixed(2)} - ${roundToSetTick(entryPrice + tick)}`;
     }
   } else if (timeframe === '2_3_DAYS') {
     // Fast Swing (2-3 days)
-    slPercent = 2.4;
-    tp1Percent = 5.6;
-    tp2Percent = 9.5;
-    if (signalType === 'EMA_PULLBACK') {
-      entryPrice = Number((current * 0.99).toFixed(2));
-      entryZone = `${(entryPrice * 0.995).toFixed(2)} - ${entryPrice.toFixed(2)}`;
+    if (signalType === 'EMA_PULLBACK' && stock.support1 && stock.support1 <= current) {
+      entryPrice = roundToSetTick(stock.support1);
+      entryZone = `${roundToSetTick(entryPrice - tick)} - ${entryPrice.toFixed(2)}`;
     } else {
       entryPrice = current;
-      entryZone = `${current.toFixed(2)} - ${(current * 1.01).toFixed(2)}`;
+      entryZone = `${entryPrice.toFixed(2)} - ${roundToSetTick(entryPrice + 2 * tick)}`;
     }
   } else {
-    // 1 Week Swing
-    slPercent = 3.2;
-    tp1Percent = 7.5;
-    tp2Percent = 13.5;
-    entryPrice = current;
-    entryZone = `${(current * 0.985).toFixed(2)} - ${current.toFixed(2)}`;
+    // 1 Week Swing: Golden pocket / support
+    entryPrice = stock.support1 && stock.support1 <= current ? roundToSetTick(stock.support1) : roundToSetTick(current - tick);
+    entryZone = `${roundToSetTick(entryPrice - 2 * tick)} - ${entryPrice.toFixed(2)}`;
   }
 
-  const stopLossPrice = Number((entryPrice * (1 - slPercent / 100)).toFixed(2));
-  const targetPrice1 = Number((entryPrice * (1 + tp1Percent / 100)).toFixed(2));
-  const targetPrice2 = Number((entryPrice * (1 + tp2Percent / 100)).toFixed(2));
+  // Stop Loss: 2-3 ticks below support or stock.stopLossPrice
+  let stopLossPrice = stock.stopLossPrice;
+  if (!stopLossPrice || stopLossPrice >= entryPrice) {
+    const slTicks = timeframe === '1_DAY' ? 2 : timeframe === '2_3_DAYS' ? 3 : 4;
+    stopLossPrice = roundToSetTick(entryPrice - slTicks * tick);
+  }
+  const slPercent = Number((((entryPrice - stopLossPrice) / entryPrice) * 100).toFixed(2));
 
-  const riskPerShare = Math.max(0.01, entryPrice - stopLossPrice);
+  // Take Profit 1 & 2: based on real resistance or minimum R:R >= 2.0
+  const riskPerShare = Math.max(tick, entryPrice - stopLossPrice);
+  let targetPrice1 = stock.targetPrice1 || stock.resistance1;
+  if (!targetPrice1 || targetPrice1 <= entryPrice) {
+    targetPrice1 = roundToSetTick(entryPrice + riskPerShare * 2.2);
+  }
+  let targetPrice2 = stock.targetPrice2 || stock.resistance2;
+  if (!targetPrice2 || targetPrice2 <= targetPrice1) {
+    targetPrice2 = roundToSetTick(targetPrice1 + riskPerShare * 1.5);
+  }
+
+  const tp1Percent = Number((((targetPrice1 - entryPrice) / entryPrice) * 100).toFixed(2));
+  const tp2Percent = Number((((targetPrice2 - entryPrice) / entryPrice) * 100).toFixed(2));
+
   const rewardPerShare1 = targetPrice1 - entryPrice;
   const riskRewardRatio = Number((rewardPerShare1 / riskPerShare).toFixed(2));
 
