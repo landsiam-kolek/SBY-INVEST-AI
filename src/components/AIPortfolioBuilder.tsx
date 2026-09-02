@@ -449,7 +449,7 @@ ${portfolio.items
               <span>AI Advisor Intelligent Portfolio Engine • ระบบจัดพอร์ตอัจฉริยะ</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-              ศูนย์จัดพอร์ต AI อัจฉริยะ (จัดการ ลบ แก้ไข สลับหุ้นได้อิสระ)
+              จัดพอร์ต AI อัจฉริยะ (จัดการ ลบ แก้ไข สลับหุ้นได้อิสระ)
             </h1>
             <p className="text-xs sm:text-sm text-zinc-300 max-w-2xl">
               AI คัดสรรหุ้น 5-8 ตัวไม่ซ้ำกัน พร้อมเครื่องมือให้คุณ <strong>ลบหุ้นออก</strong>, <strong>แก้ไขราคาเป้าหมาย</strong>, <strong>สลับตัวหุ้น</strong> หรือ <strong>ปรับสัดส่วน (%)</strong> ได้ตามใจชอบ พร้อมกดส่งตรงเข้าพอร์ตของคุณได้ทันที

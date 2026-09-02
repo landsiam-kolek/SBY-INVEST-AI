@@ -59,6 +59,9 @@ interface HeaderProps {
   onSyncAllPrices?: () => void;
   // Custom Ticker Modal
   onOpenAddTickerModal?: () => void;
+  // Audit Simulation & Working Paper Props
+  onOpenAuditSimulationLab?: () => void;
+  onOpenWorkingPaper?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -88,6 +91,8 @@ export const Header: React.FC<HeaderProps> = ({
   lastSyncedTime = new Date(),
   onSyncAllPrices,
   onOpenAddTickerModal,
+  onOpenAuditSimulationLab,
+  onOpenWorkingPaper,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isOpenDropdown, setIsOpenDropdown] = useState(false);
@@ -176,6 +181,20 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         <div className="flex items-center space-x-1.5 sm:space-x-3 shrink-0">
+          {/* Audit & Simulation Lab Trigger Pill */}
+          {onOpenAuditSimulationLab && (
+            <button
+              type="button"
+              onClick={onOpenAuditSimulationLab}
+              className="px-2 py-0.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-[10px] font-black border border-emerald-500/40 flex items-center space-x-1 transition-all cursor-pointer shadow-xs"
+              title="เปิดห้องแล็บจำลองและทดสอบ 8 Audit Findings (Simulation Sandbox Mode)"
+            >
+              <ShieldCheck className="w-3 h-3 text-emerald-400" />
+              <span>🛡️ Audit Lab</span>
+              <span className="hidden sm:inline text-[9px] bg-emerald-950/80 px-1 rounded text-emerald-200">8 Tests</span>
+            </button>
+          )}
+
           {/* Live Price Sync Status & Quick Trigger */}
           {onOpenPriceSyncModal && (
             <button
@@ -462,6 +481,20 @@ export const Header: React.FC<HeaderProps> = ({
             </span>
             <ChevronDown className="w-3 h-3 opacity-70 shrink-0" />
           </button>
+
+          {/* Working Paper Proposal Table Button (Audit Spec #7) */}
+          {onOpenWorkingPaper && (
+            <button
+              id="open-working-paper-btn"
+              onClick={onOpenWorkingPaper}
+              className="flex items-center space-x-1 px-2 sm:px-2.5 py-1.5 text-xs font-black rounded-xl border border-emerald-500/50 bg-emerald-500/15 hover:bg-emerald-600 hover:text-white text-emerald-700 dark:text-emerald-300 transition-all shadow-xs cursor-pointer group shrink-0"
+              title="เปิดตาราง Working Paper Proposal เสนอจุดเข้า Entry / Multi-Tier SL / TP และลงนาม Sign-Off"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 group-hover:text-white shrink-0" />
+              <span className="hidden xl:inline">Working Paper</span>
+              <span className="hidden sm:inline xl:hidden">Paper</span>
+            </button>
+          )}
 
           {/* Screener Button */}
           <button

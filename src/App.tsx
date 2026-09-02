@@ -17,6 +17,8 @@ import { DayTradeSetupModal } from './components/DayTradeSetupModal';
 import { LivePriceSyncModal } from './components/LivePriceSyncModal';
 import { LiveMarketControlBar } from './components/LiveMarketControlBar';
 import { AddCustomTickerModal } from './components/AddCustomTickerModal';
+import { AuditSimulationLabModal } from './components/AuditSimulationLabModal';
+import { PortfolioWorkingPaperModal } from './components/PortfolioWorkingPaperModal';
 import { useMarketDataFeed } from './hooks/useMarketDataFeed';
 import { INITIAL_STOCKS } from './data/mockStocks';
 import { 
@@ -31,9 +33,11 @@ import {
   TradingMode,
   DayTradePortfolio,
   DayTradeTimeframe,
-  DayTradeSetup
+  DayTradeSetup,
+  AIPortfolio
 } from './types';
 import { buildDayTradePortfolio, generateDayTradeSetup } from './utils/dayTradeEngine';
+import { buildIntelligentPortfolio } from './utils/portfolioEngine';
 import { updateStockWithNewPrice, REAL_MARKET_SNAPSHOT_PRESET } from './utils/priceSyncEngine';
 import { 
   Sparkles, 
@@ -146,6 +150,8 @@ export default function App() {
   const [isSearchingCustom, setIsSearchingCustom] = useState<boolean>(false);
   const [isPriceSyncModalOpen, setIsPriceSyncModalOpen] = useState<boolean>(false);
   const [isAddTickerModalOpen, setIsAddTickerModalOpen] = useState<boolean>(false);
+  const [isAuditSimulationOpen, setIsAuditSimulationOpen] = useState<boolean>(false);
+  const [isWorkingPaperOpen, setIsWorkingPaperOpen] = useState<boolean>(false);
   const [lastSyncedTime, setLastSyncedTime] = useState<Date>(() => new Date());
 
   // Stock Database & Current Stock
@@ -558,6 +564,29 @@ export default function App() {
     setLastSyncedTime(new Date());
   };
 
+  // Active AI Portfolio for Working Paper and Portfolio Builder
+  const activeAIPortfolio = useMemo(() => {
+    return buildIntelligentPortfolio(allStocks, investorProfile);
+  }, [allStocks, investorProfile]);
+
+  const handleExecuteWorkingPaperOrders = (orders: any[]) => {
+    const newPositions: UserPosition[] = orders.map((o, idx) => ({
+      id: `pos-wp-${Date.now()}-${idx}`,
+      symbol: o.symbol,
+      entryDate: new Date().toISOString().split('T')[0],
+      entryPrice: o.price,
+      shares: o.amount,
+      totalCost: o.price * o.amount,
+      targetPrice: o.targetPrice,
+      stopLossPrice: o.stopLossPrice,
+      strategyTag: 'VALUE_INVESTING',
+      thesisNotes: `ส่งคำสั่งผ่าน Portfolio Working Paper (Order #${o.orderId || 'MOCK'}) ด้วยระบบลงนาม 2-Step Sign-Off PIN`,
+      stockData: allStocks.find(s => s.symbol === o.symbol) || currentStock,
+    }));
+    setUserPositions(prev => [...newPositions, ...prev]);
+    setCurrentView('my-portfolio');
+  };
+
   const handleSyncAllPrices = () => {
     const stockMap = new Map<string, StockData>();
     allStocks.forEach(s => stockMap.set(s.symbol.toUpperCase(), s));
@@ -876,6 +905,8 @@ export default function App() {
         lastSyncedTime={liveFeedUpdatedTime}
         onSyncAllPrices={triggerMarketRefresh}
         onOpenAddTickerModal={() => setIsAddTickerModalOpen(true)}
+        onOpenAuditSimulationLab={() => setIsAuditSimulationOpen(true)}
+        onOpenWorkingPaper={() => setIsWorkingPaperOpen(true)}
       />
 
       {/* Live Market Control & Auto-refresh Feed Bar */}
@@ -1117,6 +1148,7 @@ export default function App() {
                 onSaveToWatchlist={handleSaveToWatchlist}
                 isSavedInWatchlist={isSavedInWatchlist}
                 onAddToUserPortfolio={handleAddFromTradeModule}
+                onOpenWorkingPaper={() => setIsWorkingPaperOpen(true)}
               />
             </div>
           </div>
@@ -1262,6 +1294,22 @@ export default function App() {
         isOpen={isAIAdvisorOpen}
         onClose={() => setIsAIAdvisorOpen(false)}
         stock={currentStock}
+      />
+
+      {/* Audit Simulation & 8 Findings Test Suite Modal */}
+      <AuditSimulationLabModal
+        isOpen={isAuditSimulationOpen}
+        onClose={() => setIsAuditSimulationOpen(false)}
+        allStocks={allStocks}
+      />
+
+      {/* Portfolio Working Paper Proposal & 2-Step PIN Execution Modal */}
+      <PortfolioWorkingPaperModal
+        isOpen={isWorkingPaperOpen}
+        onClose={() => setIsWorkingPaperOpen(false)}
+        portfolio={activeAIPortfolio}
+        investorProfile={investorProfile}
+        onOrdersExecuted={handleExecuteWorkingPaperOrders}
       />
     </div>
   );

@@ -35,6 +35,7 @@ interface TradeExecutionModuleProps {
     stopLossPrice: number;
     targetPrice: number;
   }) => void;
+  onOpenWorkingPaper?: () => void;
 }
 
 export const TradeExecutionModule: React.FC<TradeExecutionModuleProps> = ({
@@ -42,6 +43,7 @@ export const TradeExecutionModule: React.FC<TradeExecutionModuleProps> = ({
   onSaveToWatchlist,
   isSavedInWatchlist,
   onAddToUserPortfolio,
+  onOpenWorkingPaper,
 }) => {
   const [portfolioSize, setPortfolioSize] = useState<number>(500000);
   const [riskPercent, setRiskPercent] = useState<number>(1.5);
@@ -113,6 +115,18 @@ export const TradeExecutionModule: React.FC<TradeExecutionModuleProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* Launch Working Paper Proposal Modal (Audit Spec #7) */}
+          {onOpenWorkingPaper && (
+            <button
+              onClick={onOpenWorkingPaper}
+              className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl font-bold text-xs bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-700 dark:text-emerald-300 border border-emerald-500/40 shadow-xs transition-all cursor-pointer hover:scale-[1.02]"
+              title="เปิดตาราง Working Paper Proposal เพื่อวิเคราะห์พอร์ตและลงนามซื้อขายด้วย PIN"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />
+              <span>📋 Working Paper Proposal</span>
+            </button>
+          )}
+
           {onAddToUserPortfolio && (
             <button
               onClick={() => {
