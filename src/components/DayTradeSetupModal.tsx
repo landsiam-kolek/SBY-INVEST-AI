@@ -265,6 +265,11 @@ export const DayTradeSetupModal: React.FC<DayTradeSetupModalProps> = ({
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">บาท</span>
               </div>
             </div>
+
+            {/* Capital Isolation Tip */}
+            <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-900 dark:text-amber-200">
+              💡 <strong>วงเงินเฉพาะพอร์ตนี้:</strong> วงเงินนี้ใช้คำนวณขนาดไม้และวางจุด Stop Loss สำหรับพอร์ต Day Trade เท่านั้น (แยกเป็นอิสระ ไม่ไปรวมหรือกระทบกับพอร์ตหุ้นถือจริง My Holdings หรือพอร์ต VI)
+            </div>
           </div>
 
           {/* QUESTION 3: SELECT OR ADD STOCKS TO TRACK */}

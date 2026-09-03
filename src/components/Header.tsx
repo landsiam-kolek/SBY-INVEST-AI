@@ -44,8 +44,8 @@ interface HeaderProps {
   onOpenMarketModal: () => void;
   onSelectCategory: (cat: AssetCategory) => void;
   // View mode, user auth and objectives
-  currentView: 'analysis' | 'my-portfolio' | 'portfolio' | 'day-trade';
-  onChangeView: (view: 'analysis' | 'my-portfolio' | 'portfolio' | 'day-trade') => void;
+  currentView: 'analysis' | 'my-portfolio' | 'portfolio' | 'day-trade' | 'paper-trade';
+  onChangeView: (view: 'analysis' | 'my-portfolio' | 'portfolio' | 'day-trade' | 'paper-trade') => void;
   authUser: AuthUser | null;
   onLogout: () => void;
   onOpenObjectiveModal: () => void;
@@ -341,8 +341,23 @@ export const Header: React.FC<HeaderProps> = ({
               }`}
             >
               <Zap className={`w-3.5 h-3.5 shrink-0 ${currentView === 'day-trade' ? 'text-slate-950' : 'text-amber-500'}`} />
-              <span className="hidden 2xl:inline">⚡ โหมด Day Trade (1วัน-1wk)</span>
+              <span className="hidden 2xl:inline">⚡ Day Trade & Anti-SL</span>
               <span className="2xl:hidden hidden sm:inline">⚡ Day Trade</span>
+            </button>
+
+            {/* PAPER TRADING SIMULATOR TAB (1-3 MONTHS ZERO RISK) */}
+            <button
+              onClick={() => onChangeView('paper-trade')}
+              id="nav-tab-paper-trade"
+              className={`px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-xl transition-all flex items-center space-x-1 font-black ${
+                currentView === 'paper-trade'
+                  ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
+                  : 'text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10'
+              }`}
+            >
+              <ShieldCheck className={`w-3.5 h-3.5 shrink-0 ${currentView === 'paper-trade' ? 'text-white' : 'text-emerald-500'}`} />
+              <span className="hidden 2xl:inline">🎮 ซ้อมเทรด (1-3 ด.)</span>
+              <span className="2xl:hidden hidden sm:inline">🎮 ซ้อมเทรด</span>
             </button>
           </div>
         </div>

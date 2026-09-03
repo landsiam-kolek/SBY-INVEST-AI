@@ -15,6 +15,7 @@ import {
   Scale
 } from 'lucide-react';
 import { StockData } from '../types';
+import { TrafficStatusBadge } from './TrafficStatusBadge';
 
 interface ExecutiveSummaryCardProps {
   stock: StockData;
@@ -182,21 +183,23 @@ export const ExecutiveSummaryCard: React.FC<ExecutiveSummaryCardProps> = ({
           </div>
 
           <div className="space-y-1.5 text-xs text-slate-600 dark:text-zinc-300">
-            <div className="flex justify-between">
+            <div className="flex justify-between items-center">
               <span className="text-slate-400 dark:text-zinc-500">Fair Value ประเมิน:</span>
               <span className="font-bold text-slate-900 dark:text-white">{stock.fairValue} {stock.currency}</span>
             </div>
-            <div className="flex justify-between">
+            <div className="flex justify-between items-center">
               <span className="text-slate-400 dark:text-zinc-500">Margin of Safety:</span>
-              <span className={`font-bold ${stock.marginOfSafety >= 10 ? 'text-emerald-500 dark:text-emerald-400' : stock.marginOfSafety < 0 ? 'text-rose-500 dark:text-rose-400' : 'text-blue-500 dark:text-blue-400'}`}>
-                {stock.marginOfSafety >= 0 ? '+' : ''}{stock.marginOfSafety}%
-              </span>
+              <TrafficStatusBadge type="MOS" value={stock.marginOfSafety} compact={true} />
             </div>
-            <div className="flex justify-between">
+            <div className="flex justify-between items-center">
+              <span className="text-slate-400 dark:text-zinc-500">หนี้สิน D/E Ratio:</span>
+              <TrafficStatusBadge type="DE" value={stock.de} compact={true} />
+            </div>
+            <div className="flex justify-between items-center">
               <span className="text-slate-400 dark:text-zinc-500">P/E vs Industry:</span>
               <span className="font-medium text-slate-700 dark:text-zinc-200">{stock.pe}x / {stock.industryPe}x</span>
             </div>
-            <div className="flex justify-between">
+            <div className="flex justify-between items-center">
               <span className="text-slate-400 dark:text-zinc-500">ROE / Div Yield:</span>
               <span className="font-medium text-slate-700 dark:text-zinc-200">{stock.roe}% / {stock.dividendYield}%</span>
             </div>

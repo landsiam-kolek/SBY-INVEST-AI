@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { StockData, ChatMessage } from '../types';
 import { SataRobotLogo } from './SataRobotLogo';
+import { copyToClipboard } from '../utils/clipboardHelper';
 
 interface AIAssistantDrawerProps {
   isOpen: boolean;
@@ -136,7 +137,7 @@ export const AIAssistantDrawer: React.FC<AIAssistantDrawerProps> = ({
   };
 
   const copyReport = () => {
-    navigator.clipboard.writeText(diagnosisReport);
+    copyToClipboard(diagnosisReport);
     setCopiedReport(true);
     setTimeout(() => setCopiedReport(false), 2000);
   };

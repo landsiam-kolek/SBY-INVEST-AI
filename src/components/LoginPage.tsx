@@ -3,10 +3,13 @@ import {
   Lock, 
   User, 
   ArrowRight, 
-  AlertCircle
+  AlertCircle,
+  Sparkles,
+  BookOpen
 } from 'lucide-react';
 import { AuthUser } from '../types';
 import { SataRobotLogo } from './SataRobotLogo';
+import { SbyIntroductionModal } from './SbyIntroductionModal';
 
 interface LoginPageProps {
   onLoginSuccess: (user: AuthUser) => void;
@@ -17,6 +20,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
+  const [showIntroModal, setShowIntroModal] = useState(false);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -172,11 +176,34 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         </form>
       </div>
 
-      {/* Footer Info */}
-      <div className="mt-6 text-center text-xs text-zinc-500 max-w-sm">
-        <p>SBY Invest AI — Intelligent Investment & Trading Platform</p>
-        <p className="text-[10px] mt-1 text-zinc-600">ผสาน Fundamental Valuation & Technical Trading Strategy</p>
+      {/* Footer Info / Introduction Button */}
+      <div className="mt-6 text-center max-w-sm w-full relative z-10">
+        <button
+          type="button"
+          id="btn-open-intro-article"
+          onClick={() => setShowIntroModal(true)}
+          className="w-full text-center text-xs text-zinc-500 hover:text-indigo-300 p-2.5 rounded-2xl hover:bg-zinc-900/80 border border-transparent hover:border-indigo-500/30 transition-all duration-200 cursor-pointer group"
+          title="คลิกเพื่ออ่านบทความแนะนำ SBY INVEST AI"
+        >
+          <div className="flex items-center justify-center space-x-1.5 text-zinc-400 group-hover:text-indigo-300 transition-colors">
+            <Sparkles className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+            <span className="font-semibold">SBY Invest AI — Intelligent Investment & Trading Platform</span>
+          </div>
+          <p className="text-[10px] mt-1 text-zinc-600 group-hover:text-zinc-400 transition-colors">
+            ผสาน Fundamental Valuation & Technical Trading Strategy
+          </p>
+          <div className="mt-2 inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-indigo-950/60 border border-indigo-500/30 text-[11px] font-bold text-indigo-300 group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-sm">
+            <BookOpen className="w-3.5 h-3.5" />
+            <span>📖 แนะนำระบบ: ทำไมต้องใช้ SBY INVEST AI? (คลิกเพื่ออ่าน)</span>
+          </div>
+        </button>
       </div>
+
+      {/* Introduction Article Modal */}
+      <SbyIntroductionModal 
+        isOpen={showIntroModal} 
+        onClose={() => setShowIntroModal(false)} 
+      />
     </div>
   );
 };

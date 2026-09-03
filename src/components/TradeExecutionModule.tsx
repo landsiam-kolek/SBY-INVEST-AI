@@ -18,6 +18,8 @@ import {
 import confetti from 'canvas-confetti';
 import { StockData, PositionSizingInput } from '../types';
 import { calculatePositionSizing, formatCurrency, formatNumber } from '../utils/calculations';
+import { TrafficStatusBadge } from './TrafficStatusBadge';
+import { AntiStopHuntShield } from './AntiStopHuntShield';
 
 interface TradeExecutionModuleProps {
   stock: StockData;
@@ -352,17 +354,17 @@ export const TradeExecutionModule: React.FC<TradeExecutionModuleProps> = ({
               </span>
             </div>
 
-            {/* Risk / Reward Ratio TP1 */}
-            <div className="p-3.5 rounded-xl border border-emerald-200 dark:border-emerald-500/20 bg-emerald-50/50 dark:bg-emerald-500/10">
+            {/* Risk / Reward Ratio TP1 with Traffic Light Badge */}
+            <div className="p-3.5 rounded-xl border border-emerald-200 dark:border-emerald-500/20 bg-emerald-50/50 dark:bg-emerald-500/10 flex flex-col justify-between">
               <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 block mb-1">
                 Risk / Reward (TP1)
               </span>
               <div className="text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400">
                 1 : {planResult.riskRewardRatio1}
               </div>
-              <span className="text-[10px] text-emerald-700 dark:text-emerald-300 mt-1 block">
-                {planResult.riskRewardRatio1 >= 2 ? '✓ อัตราคุ้มค่ามาก' : '⚠️ ระวัง R:R ต่ำ'}
-              </span>
+              <div className="mt-1">
+                <TrafficStatusBadge type="RR" value={planResult.riskRewardRatio1} compact={true} />
+              </div>
             </div>
 
             {/* Expected Profit TP1 */}
@@ -420,6 +422,16 @@ export const TradeExecutionModule: React.FC<TradeExecutionModuleProps> = ({
               ></div>
             </div>
           </div>
+
+          {/* Anti-Stop Hunt Shield & Dynamic Buffer Selector */}
+          <AntiStopHuntShield
+            stock={stock}
+            entryPrice={entryPrice}
+            supportLevel={stock.support1 || stock.currentPrice * 0.96}
+            currentStopLoss={stopLossPrice}
+            onApplyDynamicSL={(newSL) => setStopLossPrice(newSL)}
+            compact={false}
+          />
 
           {/* Execution Game Plan Checklist (แผนกลยุทธ์ปฏิบัติการ 4 ขั้นตอน) */}
           <div className="p-4 rounded-xl border border-indigo-100 dark:border-zinc-800 bg-gradient-to-br from-indigo-50/40 via-white to-blue-50/20 dark:from-[#18181B] dark:via-[#141417] dark:to-[#121215]">

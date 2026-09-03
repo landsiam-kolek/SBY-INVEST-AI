@@ -45,6 +45,7 @@ import {
 } from '../types';
 import { buildIntelligentPortfolio, recalculatePortfolioFromItems } from '../utils/portfolioEngine';
 import { formatNumber } from '../utils/calculations';
+import { copyToClipboard } from '../utils/clipboardHelper';
 
 interface AIPortfolioBuilderProps {
   allStocks: StockData[];
@@ -396,7 +397,7 @@ ${portfolio.items
   )
   .join('\n\n')}
 `;
-    navigator.clipboard.writeText(textSummary.trim());
+    copyToClipboard(textSummary.trim());
     setCopiedSummary(true);
     showToast('📋 คัดลอกแผนพอร์ตทั้งหมดลง Clipboard เรียบร้อย');
     setTimeout(() => setCopiedSummary(false), 2500);

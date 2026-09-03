@@ -44,7 +44,10 @@ import {
 } from '../types';
 import { generateDayTradeSetup, calculateDayTradeIndicators } from '../utils/dayTradeEngine';
 import { getSetPriceStep } from '../utils/priceSyncEngine';
+import { copyToClipboard } from '../utils/clipboardHelper';
 import { AddCustomDayTradeStockModal } from './AddCustomDayTradeStockModal';
+import { TrafficStatusBadge } from './TrafficStatusBadge';
+import { AntiStopHuntShield } from './AntiStopHuntShield';
 
 interface DayTradeTerminalProps {
   dayTradePortfolio: DayTradePortfolio;
@@ -95,6 +98,10 @@ export const DayTradeTerminal: React.FC<DayTradeTerminalProps> = ({
   const [tempPriceInput, setTempPriceInput] = useState<string>('');
   const [isAutoSyncEnabled, setIsAutoSyncEnabled] = useState<boolean>(false);
   const [isManualSyncing, setIsManualSyncing] = useState<boolean>(false);
+  const [isCopiedToExcel, setIsCopiedToExcel] = useState<boolean>(false);
+  const [copyFeedbackMsg, setCopyFeedbackMsg] = useState<string>('');
+  const [showClearConfirmModal, setShowClearConfirmModal] = useState<boolean>(false);
+  const [clearToastMsg, setClearToastMsg] = useState<string>('');
 
   // Real-time ticking clock
   useEffect(() => {
@@ -321,6 +328,79 @@ export const DayTradeTerminal: React.FC<DayTradeTerminalProps> = ({
     if (activeStrategyFilter === 'ALL') return true;
     return s.signalType === activeStrategyFilter;
   });
+
+  const handleCopyToExcel = async () => {
+    if (filteredSetups.length === 0) {
+      setCopyFeedbackMsg('⚠️ ไม่มีข้อมูลหุ้นในตารางให้คัดลอก');
+      setIsCopiedToExcel(true);
+      setTimeout(() => {
+        setIsCopiedToExcel(false);
+        setCopyFeedbackMsg('');
+      }, 2500);
+      return;
+    }
+
+    const headers = [
+      'Symbol',
+      'ชื่อบริษัท',
+      'ราคาเมื่อวาน (Prev Close)',
+      'ราคาล่าสุด (Last Price)',
+      'เปลี่ยนแปลง (Change)',
+      '% เปลี่ยนแปลง (% Change)',
+      'จุดตัดขาดทุน (Stop Loss)',
+      'เป้าหมายทำกำไร 1 (Target TP1)',
+      'เป้าหมายทำกำไร 2 (Target TP2)',
+      'Risk:Reward',
+      'สัญญาณทางเทคนิค (Signal)',
+      'กรอบเวลา (Timeframe)',
+      'งบลงทุนจัดสรร (THB)',
+      'จำนวนหุ้นแนะนำ (Shares)'
+    ];
+
+    const rows = filteredSetups.map((s) => {
+      const prevClose = Number((s.stock.currentPrice - (s.stock.change || 0)).toFixed(2));
+      const chgSign = (s.stock.change !== undefined && s.stock.change > 0) ? '+' : '';
+      const chgPercentSign = s.stock.changePercent > 0 ? '+' : '';
+      return [
+        s.symbol,
+        s.stock.name || s.symbol,
+        prevClose.toFixed(2),
+        s.stock.currentPrice.toFixed(2),
+        `${chgSign}${(s.stock.change || 0).toFixed(2)}`,
+        `${chgPercentSign}${s.stock.changePercent.toFixed(2)}%`,
+        s.stopLossPrice.toFixed(2),
+        s.targetPrice1.toFixed(2),
+        s.targetPrice2 ? s.targetPrice2.toFixed(2) : '-',
+        `1:${s.riskRewardRatio.toFixed(1)}`,
+        s.signalType,
+        dayTradePortfolio.timeframe === '1_DAY' ? '1 วัน (Intraday)' : dayTradePortfolio.timeframe === '2_3_DAYS' ? '2-3 วัน' : '1 สัปดาห์',
+        s.allocatedCapital.toLocaleString(),
+        s.recommendedShares.toLocaleString()
+      ];
+    });
+
+    const tsv = [headers.join('\t'), ...rows.map((r) => r.join('\t'))].join('\n');
+    const success = await copyToClipboard(tsv);
+    if (success) {
+      setCopyFeedbackMsg(`✅ คัดลอกตาราง ${filteredSetups.length} ตัว สำเร็จ! นำไปวาง (Ctrl+V) ใน Excel / Sheets ได้ทันที`);
+    } else {
+      setCopyFeedbackMsg('❌ ไม่สามารถคัดลอกได้ กรุณาลองใหม่อีกครั้ง');
+    }
+    setIsCopiedToExcel(true);
+    setTimeout(() => {
+      setIsCopiedToExcel(false);
+      setCopyFeedbackMsg('');
+    }, 3000);
+  };
+
+  const handleConfirmClearTable = () => {
+    if (onClearDayTradePortfolio) {
+      onClearDayTradePortfolio();
+    }
+    setShowClearConfirmModal(false);
+    setClearToastMsg('✅ ล้างรายการหุ้นในตารางทั้งหมดเรียบร้อยแล้ว');
+    setTimeout(() => setClearToastMsg(''), 3000);
+  };
 
   const handleQuickExecute = (setup: DayTradeSetup) => {
     onExecuteTrade({
@@ -837,26 +917,36 @@ export const DayTradeTerminal: React.FC<DayTradeTerminalProps> = ({
                     </div>
                   </div>
 
-                  {/* Risk / Reward & Indicators Checklist */}
+                  {/* Risk / Reward & Indicators Checklist with Traffic Light Badges */}
                   <div className="mt-3 space-y-2">
                     <div className="flex items-center justify-between text-xs font-bold">
-                      <span className="text-slate-500 dark:text-zinc-400">อัตราผลตอบแทนต่อความเสี่ยง (R:R Ratio):</span>
-                      <span className="px-2 py-0.5 rounded-lg bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-black">
-                        1 : {setup.riskRewardRatio} ({setup.riskRewardRatio >= 2.0 ? '🌟 คุ้มค่ามาก' : '⚠️ ตึง'})
-                      </span>
+                      <span className="text-slate-500 dark:text-zinc-400">อัตราผลตอบแทนต่อความเสี่ยง (R:R):</span>
+                      <TrafficStatusBadge type="RR" value={setup.riskRewardRatio} />
                     </div>
 
-                    {/* Technical Indicators Badges */}
-                    <div className="flex flex-wrap gap-1.5 text-[10px]">
-                      <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 font-semibold">
-                        EMA5: {setup.indicators.ema5} | EMA10: {setup.indicators.ema10}
-                      </span>
+                    {/* Technical Indicators Badges with Traffic Light System */}
+                    <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
+                      <TrafficStatusBadge type="VOLUME" value={setup.indicators.volumeSurgePercent} compact={true} />
+                      <TrafficStatusBadge type="MOS" value={setup.stock.marginOfSafety} compact={true} />
                       <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 font-semibold">
                         RSI: <strong>{setup.indicators.rsi}</strong> ({setup.indicators.rsiStatus})
                       </span>
-                      <span className="px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 font-black">
-                        Volume Surge: +{setup.indicators.volumeSurgePercent}%
-                      </span>
+                    </div>
+
+                    {/* Anti-Stop Hunt Guardrail on Card */}
+                    <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-400/40 text-[11px] space-y-1">
+                      <div className="flex items-center justify-between font-black text-amber-900 dark:text-amber-300">
+                        <span className="flex items-center space-x-1">
+                          <ShieldAlert className="w-3.5 h-3.5 text-amber-500" />
+                          <span>🛡️ เกราะกันหลอกกิน SL (Anti-Stop Hunt Active)</span>
+                        </span>
+                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
+                          ATR Buffer 1.5x
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-600 dark:text-zinc-300 leading-tight">
+                        ระยะ SL เผื่อแรงเหวี่ยง 1.5x ATR • แนะนำรอแท่งเทียน 5m/15m ปิดจริงใต้ {setup.stopLossPrice} ฿ ป้องกันไส้เทียนสลัดเม่า
+                      </p>
                     </div>
 
                     {/* Action Guidance Note */}
@@ -985,38 +1075,39 @@ export const DayTradeTerminal: React.FC<DayTradeTerminalProps> = ({
             {/* Copy to Excel Button */}
             <button
               type="button"
-              onClick={() => {
-                const headers = ['Symbol', 'Prev Close (เมื่อวาน)', 'Last Price (ล่าสุด)', 'Change (เปลี่ยนแปลง)', 'Change (%)', 'Stop Loss (SL)', 'Take Profit (TP)', 'Signal'];
-                const rows = filteredSetups.map(s => {
-                  const prevClose = Number((s.stock.currentPrice - (s.stock.change || 0)).toFixed(2));
-                  return [
-                    s.symbol,
-                    prevClose.toFixed(2),
-                    s.stock.currentPrice.toFixed(2),
-                    (s.stock.change !== undefined && s.stock.change >= 0 ? '+' : '') + (s.stock.change || 0).toFixed(2),
-                    (s.stock.changePercent >= 0 ? '+' : '') + s.stock.changePercent.toFixed(2) + '%',
-                    s.stopLossPrice.toFixed(2),
-                    s.targetPrice1.toFixed(2),
-                    s.signalType
-                  ];
-                });
-                const tsv = [headers.join('\t'), ...rows.map(r => r.join('\t'))].join('\n');
-                navigator.clipboard.writeText(tsv).then(() => {
-                  alert('✅ คัดลอกตารางหุ้น (ราคาเมื่อวาน, ราคาล่าสุด, SL, TP, สัญญาณ) สำเร็จ!\nคุณสามารถนำไปวาง (Paste / Ctrl+V) ลงใน Microsoft Excel หรือ Google Sheets ได้ทันที');
-                });
-              }}
-              className="px-3 py-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-xl text-xs font-bold border border-indigo-200 dark:border-indigo-800/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 flex items-center space-x-1.5 transition-all cursor-pointer"
+              id="copy-to-excel-btn"
+              onClick={handleCopyToExcel}
+              title="คัดลอกตารางหุ้นทั้งหมดเพื่อนำไปวาง (Ctrl+V) ลงใน Excel หรือ Google Sheets"
+              className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all flex items-center space-x-1.5 cursor-pointer shadow-xs ${
+                isCopiedToExcel
+                  ? 'bg-emerald-600 text-white border-emerald-500 ring-2 ring-emerald-400/30'
+                  : 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/50'
+              }`}
             >
-              <Copy className="w-3.5 h-3.5" />
-              <span>คัดลอกลง Excel</span>
+              {isCopiedToExcel ? (
+                <Check className="w-3.5 h-3.5 text-white" />
+              ) : (
+                <Copy className="w-3.5 h-3.5" />
+              )}
+              <span>{isCopiedToExcel ? 'คัดลอกแล้ว!' : 'คัดลอกลง Excel'}</span>
             </button>
 
             {/* Clear Table Button */}
             {onClearDayTradePortfolio && (
               <button
                 type="button"
-                onClick={onClearDayTradePortfolio}
-                className="px-3 py-2 bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300 rounded-xl text-xs font-bold border border-rose-200 dark:border-rose-800/60 hover:bg-rose-100 dark:hover:bg-rose-900/50 flex items-center space-x-1.5 transition-all cursor-pointer"
+                id="clear-day-trade-table-btn"
+                onClick={() => {
+                  if (dayTradePortfolio.setups.length === 0) {
+                    setClearToastMsg('ℹ️ ตารางหุ้นว่างเปล่าอยู่แล้ว');
+                    setTimeout(() => setClearToastMsg(''), 2500);
+                    return;
+                  }
+                  setShowClearConfirmModal(true);
+                }}
+                disabled={dayTradePortfolio.setups.length === 0}
+                title="ล้างรายการหุ้นทั้งหมดออกจากตารางเพื่อเลือกหุ้นชุดใหม่"
+                className="px-3 py-2 bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300 rounded-xl text-xs font-bold border border-rose-200 dark:border-rose-800/60 hover:bg-rose-100 dark:hover:bg-rose-900/50 flex items-center space-x-1.5 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>ล้างตารางหุ้น</span>
@@ -1024,6 +1115,26 @@ export const DayTradeTerminal: React.FC<DayTradeTerminalProps> = ({
             )}
           </div>
         </div>
+
+        {/* Feedback Alert Toast */}
+        {(copyFeedbackMsg || clearToastMsg) && (
+          <div className="p-3 rounded-2xl bg-indigo-950/90 border border-indigo-500/40 text-indigo-100 text-xs font-semibold flex items-center justify-between shadow-lg animate-in fade-in slide-in-from-top-1">
+            <div className="flex items-center space-x-2">
+              <Sparkles className="w-4 h-4 text-amber-300 shrink-0" />
+              <span>{copyFeedbackMsg || clearToastMsg}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setCopyFeedbackMsg('');
+                setClearToastMsg('');
+              }}
+              className="text-indigo-300 hover:text-white px-2 py-0.5 text-xs font-bold cursor-pointer"
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-zinc-700/80">
           <table className="w-full text-left border-collapse text-xs whitespace-nowrap">
@@ -1249,6 +1360,56 @@ export const DayTradeTerminal: React.FC<DayTradeTerminalProps> = ({
         allStocks={allStocks}
         onAddStockWithAudit={onAddStockToDayTradePortfolio}
       />
+
+      {/* In-App Confirmation Modal for Clearing Stock Table */}
+      {showClearConfirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-[#18181B] border border-rose-500/40 w-full max-w-md rounded-3xl shadow-2xl overflow-hidden p-6 space-y-4">
+            <div className="flex items-center space-x-3">
+              <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-500 shrink-0">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-slate-900 dark:text-white">
+                  ยืนยันการล้างตารางหุ้น?
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
+                  คุณกำลังจะล้างหุ้นทั้ง {dayTradePortfolio.setups.length} ตัวออกจากตาราง Watchlist
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-700 dark:text-rose-300 space-y-1.5">
+              <p className="font-bold flex items-center space-x-1">
+                <span>⚠️ สิ่งที่จะเกิดขึ้น:</span>
+              </p>
+              <ul className="list-disc pl-4 space-y-1 text-[11px] text-slate-600 dark:text-zinc-300">
+                <li>จะลบรายการหุ้นทั้งหมดในตารางสรุปแผนเทรด Day Trade</li>
+                <li>คุณสามารถเพิ่มหุ้นใหม่ได้ตลอดเวลาผ่านปุ่ม "ค้นหา/เพิ่มหุ้น", สแกนเนอร์ หรือ "หุ้นโมเมนตัม"</li>
+              </ul>
+            </div>
+
+            <div className="flex items-center justify-end space-x-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowClearConfirmModal(false)}
+                className="px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 text-xs font-bold hover:bg-slate-200 dark:hover:bg-zinc-700 transition-all cursor-pointer"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                id="confirm-clear-stock-table-action-btn"
+                onClick={handleConfirmClearTable}
+                className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-black shadow-lg shadow-rose-600/30 transition-all cursor-pointer flex items-center space-x-1.5"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>ยืนยันล้างตารางหุ้น</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

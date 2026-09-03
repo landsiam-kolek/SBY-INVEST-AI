@@ -19,6 +19,8 @@ import { LiveMarketControlBar } from './components/LiveMarketControlBar';
 import { AddCustomTickerModal } from './components/AddCustomTickerModal';
 import { AuditSimulationLabModal } from './components/AuditSimulationLabModal';
 import { PortfolioWorkingPaperModal } from './components/PortfolioWorkingPaperModal';
+import { PaperTradingSimulator } from './components/PaperTradingSimulator';
+import { BeginnerGuideBanner } from './components/BeginnerGuideBanner';
 import { useMarketDataFeed } from './hooks/useMarketDataFeed';
 import { INITIAL_STOCKS } from './data/mockStocks';
 import { 
@@ -88,8 +90,8 @@ export default function App() {
     }
   });
 
-  // Active View Mode ('analysis' | 'my-portfolio' | 'portfolio' | 'day-trade')
-  const [currentView, setCurrentView] = useState<'analysis' | 'my-portfolio' | 'portfolio' | 'day-trade'>('analysis');
+  // Active View Mode ('analysis' | 'my-portfolio' | 'portfolio' | 'day-trade' | 'paper-trade')
+  const [currentView, setCurrentView] = useState<'analysis' | 'my-portfolio' | 'portfolio' | 'day-trade' | 'paper-trade'>('analysis');
 
   // Day Trade Portfolio State
   const [dayTradePortfolio, setDayTradePortfolio] = useState<DayTradePortfolio>(() => {
@@ -465,12 +467,10 @@ export default function App() {
   };
 
   const handleClearDayTradePortfolio = () => {
-    if (window.confirm('คุณต้องการล้างรายการหุ้นทั้งหมดในตาราง Watchlist เพื่อเริ่มใหม่ใช่หรือไม่?')) {
-      setDayTradePortfolio(prev => ({
-        ...prev,
-        setups: []
-      }));
-    }
+    setDayTradePortfolio(prev => ({
+      ...prev,
+      setups: []
+    }));
   };
 
   // Live Price Synchronization Handlers
@@ -1056,6 +1056,12 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+        {/* Intuitive Beginner Guide & 4-Workspace Navigator */}
+        <BeginnerGuideBanner
+          currentView={currentView}
+          onChangeView={(v) => setCurrentView(v)}
+        />
+
         {/* VIEW 1: DEDICATED AI INVESTOR PORTFOLIO BUILDER (5 - 8 STOCKS) */}
         {currentView === 'portfolio' && (
           <AIPortfolioBuilder
@@ -1178,6 +1184,17 @@ export default function App() {
             onUpdateSingleStockPrice={handleUpdateSingleStockPrice}
           />
         )}
+
+        {/* VIEW 5: PAPER TRADING SIMULATOR (สนามซ้อม 1-3 เดือน เพื่อความมั่นใจ 100% สำหรับเงินก้อนสุดท้าย) */}
+        {currentView === 'paper-trade' && (
+          <PaperTradingSimulator
+            allStocks={allStocks}
+            onSelectStock={(s) => {
+              setCurrentStock(s);
+              setCurrentView('analysis');
+            }}
+          />
+        )}
       </main>
 
       {/* Footer */}
@@ -1193,11 +1210,10 @@ export default function App() {
             <span className="text-slate-400 dark:text-zinc-500">— ระบบผสาน Fundamental Analysis & Technical Trading</span>
           </div>
 
-          <div className="flex items-center space-x-4 text-[11px]">
-            <span className="text-slate-500 dark:text-zinc-400">
-              พอร์ตโฟลิโอ & AI Advisor ประจำตัว
+          <div className="flex flex-col sm:flex-row items-center space-y-1 sm:space-y-0 sm:space-x-4 text-[11px]">
+            <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-zinc-800/80 text-slate-600 dark:text-zinc-300 font-mono">
+              [Mode: {tradingMode === 'DAY_TRADE' ? 'Day Trade' : 'VI / Long-term'} | Risk: {investorProfile.riskTolerance === 'LOW' ? 'ต่ำ' : investorProfile.riskTolerance === 'HIGH' ? 'สูง' : 'ปานกลาง'} | TimeFrame: {investorProfile.investmentHorizon === 'SHORT' ? '6M' : '12M'} | Status: Locked & Verified]
             </span>
-            <span className="text-zinc-400 dark:text-zinc-600">•</span>
             <span className="text-slate-500 dark:text-zinc-400">Powered by Gemini 3.7 Flash</span>
           </div>
         </div>
@@ -1234,8 +1250,11 @@ export default function App() {
       <OnboardingObjectiveModal
         isOpen={isOnboardingModalOpen}
         onClose={() => setIsOnboardingModalOpen(false)}
-        username={authUser.username}
+        username={authUser?.username || 'นักลงทุน'}
         initialProfile={investorProfile}
+        userPositions={userPositions}
+        dayTradePortfolio={dayTradePortfolio}
+        brokerCash={350000}
         onSaveProfileAndLaunchAI={(newProfile) => {
           setInvestorProfile(newProfile);
           setCurrentView('portfolio');

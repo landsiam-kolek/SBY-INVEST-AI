@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { mockBroker, LIVE_TRADING_ENABLED, FaultScenarioType } from '../services/mockBrokerService';
 import { auditTestEngine, AuditTestResult, BacktestSLMetric, BacktestTradeRecord } from '../services/auditTestEngine';
+import { copyToClipboard } from '../utils/clipboardHelper';
 
 interface AuditSimulationLabModalProps {
   isOpen: boolean;
@@ -89,8 +90,8 @@ export const AuditSimulationLabModal: React.FC<AuditSimulationLabModalProps> = (
     ]);
   };
 
-  const copyToClipboard = (text: string, label: string) => {
-    navigator.clipboard.writeText(text);
+  const handleCopyToClipboard = (text: string, label: string) => {
+    copyToClipboard(text);
     setCopiedNotification(`คัดลอก ${label} เรียบร้อยแล้ว!`);
     setTimeout(() => setCopiedNotification(null), 2500);
   };
@@ -292,7 +293,7 @@ export const AuditSimulationLabModal: React.FC<AuditSimulationLabModalProps> = (
                     <button
                       onClick={() => {
                         const logs = testResults.find(t => t.id === selectedAuditCard)?.evidence.logs.join('\n') || '';
-                        copyToClipboard(logs, `Logs ข้อ #${selectedAuditCard}`);
+                        handleCopyToClipboard(logs, `Logs ข้อ #${selectedAuditCard}`);
                       }}
                       className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-[11px] font-bold flex items-center space-x-1"
                     >
@@ -343,7 +344,7 @@ export const AuditSimulationLabModal: React.FC<AuditSimulationLabModalProps> = (
                   <button
                     onClick={() => {
                       const jsonStr = JSON.stringify(allTrades, null, 2);
-                      copyToClipboard(jsonStr, 'Raw 240 Trades JSON');
+                      handleCopyToClipboard(jsonStr, 'Raw 240 Trades JSON');
                     }}
                     className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center space-x-1"
                   >
@@ -581,7 +582,7 @@ export const AuditSimulationLabModal: React.FC<AuditSimulationLabModalProps> = (
                 <button
                   onClick={() => {
                     if (ledgerVerification?.rawJsonExport) {
-                      copyToClipboard(ledgerVerification.rawJsonExport, 'Audit Ledger JSON');
+                      handleCopyToClipboard(ledgerVerification.rawJsonExport, 'Audit Ledger JSON');
                     }
                   }}
                   className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center space-x-1.5 self-start sm:self-auto cursor-pointer"
