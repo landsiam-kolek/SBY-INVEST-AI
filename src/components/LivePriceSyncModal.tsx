@@ -326,53 +326,57 @@ export const LivePriceSyncModal: React.FC<LivePriceSyncModalProps> = ({
         </div>
 
         {/* Navigation Tabs */}
-        <div className="px-4 sm:px-6 pt-3 border-b border-slate-100 dark:border-zinc-800 flex items-center justify-between gap-2 overflow-x-auto bg-slate-50/20 dark:bg-zinc-900/20">
-          <div className="flex space-x-1 sm:space-x-2">
+        <div className="px-4 sm:px-6 py-2.5 border-b border-slate-200 dark:border-zinc-800 bg-slate-50/80 dark:bg-[#16161a] overflow-x-auto shrink-0">
+          <div className="flex items-center space-x-1 sm:space-x-2 min-w-max">
             <button
+              type="button"
               onClick={() => setActiveTab('report')}
-              className={`px-3.5 py-2 rounded-t-xl text-xs font-black transition-all flex items-center space-x-2 border-b-2 cursor-pointer ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 whitespace-nowrap shrink-0 cursor-pointer ${
                 activeTab === 'report'
-                  ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 bg-white dark:bg-[#121215]'
-                  : 'border-transparent text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200'
+                  ? 'bg-indigo-600 text-white shadow-xs font-black'
+                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-zinc-800/70'
               }`}
             >
-              <FileSpreadsheet className="w-4 h-4" />
+              <FileSpreadsheet className="w-4 h-4 shrink-0" />
               <span>รายงานราคาปิดประจำวัน (Daily Stock Price Report)</span>
             </button>
 
             <button
+              type="button"
               onClick={() => setActiveTab('import')}
-              className={`px-3.5 py-2 rounded-t-xl text-xs font-black transition-all flex items-center space-x-2 border-b-2 cursor-pointer ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 whitespace-nowrap shrink-0 cursor-pointer ${
                 activeTab === 'import'
-                  ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 bg-white dark:bg-[#121215]'
-                  : 'border-transparent text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200'
+                  ? 'bg-indigo-600 text-white shadow-xs font-black'
+                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-zinc-800/70'
               }`}
             >
-              <UploadCloud className="w-4 h-4" />
+              <UploadCloud className="w-4 h-4 shrink-0" />
               <span>นำเข้าข้อมูล (Siamchart / Settrade / CSV)</span>
             </button>
 
             <button
+              type="button"
               onClick={() => setActiveTab('edit_table')}
-              className={`px-3.5 py-2 rounded-t-xl text-xs font-black transition-all flex items-center space-x-2 border-b-2 cursor-pointer ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 whitespace-nowrap shrink-0 cursor-pointer ${
                 activeTab === 'edit_table'
-                  ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 bg-white dark:bg-[#121215]'
-                  : 'border-transparent text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200'
+                  ? 'bg-indigo-600 text-white shadow-xs font-black'
+                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-zinc-800/70'
               }`}
             >
-              <Edit3 className="w-4 h-4" />
+              <Edit3 className="w-4 h-4 shrink-0" />
               <span>แก้ไข / ปรับแต่งราคาเฉพาะตัว</span>
             </button>
 
             <button
+              type="button"
               onClick={() => setActiveTab('architecture_faq')}
-              className={`px-3.5 py-2 rounded-t-xl text-xs font-black transition-all flex items-center space-x-2 border-b-2 cursor-pointer ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 whitespace-nowrap shrink-0 cursor-pointer ${
                 activeTab === 'architecture_faq'
-                  ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 bg-white dark:bg-[#121215]'
-                  : 'border-transparent text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200'
+                  ? 'bg-indigo-600 text-white shadow-xs font-black'
+                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-zinc-800/70'
               }`}
             >
-              <HelpCircle className="w-4 h-4" />
+              <HelpCircle className="w-4 h-4 shrink-0" />
               <span>คู่มือระบบ & ความโปร่งใสของข้อมูล</span>
             </button>
           </div>

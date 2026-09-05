@@ -316,9 +316,22 @@ export const FundamentalModule: React.FC<FundamentalModuleProps> = ({ stock }) =
 
       {/* Key Financial Metrics Grid */}
       <div className="mb-6">
-        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-zinc-500 mb-3">
-          ตัวชี้วัดทางการเงินสำคัญ (Core Financial Ratios)
-        </h4>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-zinc-500">
+            ตัวชี้วัดทางการเงินสำคัญ (Core Financial Ratios)
+          </h4>
+          <button
+            type="button"
+            onClick={() => {
+              const el = document.getElementById('section-annual-financial-trend');
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+            }}
+            className="text-[11px] font-bold text-teal-600 dark:text-teal-400 hover:underline flex items-center space-x-1 cursor-pointer self-start sm:self-auto"
+          >
+            <TrendingUp className="w-3.5 h-3.5 mr-0.5" />
+            <span>กราฟเส้นเปรียบเทียบงบสิ้นปี 5 ปี (กำไร/หนี้/เพิ่มทุน) ↓</span>
+          </button>
+        </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           {/* P/E */}

@@ -21,7 +21,8 @@ import {
   Lock,
   Unlock,
   ShieldAlert,
-  Info
+  Info,
+  X
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { StockData } from '../types';
@@ -41,6 +42,18 @@ export interface SimulatedPosition {
   strategyTag: string;
   totalCost: number;
   feePaid: number;
+}
+
+export interface DuplicateOrderPromptData {
+  stock: StockData;
+  shares: number;
+  price: number;
+  grossCost: number;
+  fee: number;
+  totalRequired: number;
+  sl: number;
+  tp: number;
+  existingPositions: SimulatedPosition[];
 }
 
 export interface SimulatedClosedTrade {
@@ -155,6 +168,19 @@ export const PaperTradingSimulator: React.FC<PaperTradingSimulatorProps> = ({
   const [customEntryPrice, setCustomEntryPrice] = useState<number>(0);
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState<boolean>(false);
 
+  // Modals & Notifications for Deleting / Duplicate Handling
+  const [duplicateOrderPrompt, setDuplicateOrderPrompt] = useState<DuplicateOrderPromptData | null>(null);
+  const [positionToDelete, setPositionToDelete] = useState<SimulatedPosition | null>(null);
+  const [symbolToDeleteAll, setSymbolToDeleteAll] = useState<string | null>(null);
+  const [toastNotification, setToastNotification] = useState<{ message: string; type: 'success' | 'info' | 'warning' } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'info' | 'warning' = 'success') => {
+    setToastNotification({ message, type });
+    setTimeout(() => {
+      setToastNotification(null);
+    }, 4500);
+  };
+
   // Sync state to localStorage
   useEffect(() => {
     localStorage.setItem('sby_sim_initial_capital', initialCapital.toString());
@@ -183,6 +209,18 @@ export const PaperTradingSimulator: React.FC<PaperTradingSimulatorProps> = ({
   const totalReturnBaht = totalNetWorth - initialCapital;
   const totalReturnPercent = Number(((totalReturnBaht / initialCapital) * 100).toFixed(2));
 
+  // Duplicate symbol counts across portfolio
+  const symbolCounts = positions.reduce<Record<string, number>>((acc, p) => {
+    acc[p.symbol] = (acc[p.symbol] || 0) + 1;
+    return acc;
+  }, {});
+  const duplicateSymbols = Object.keys(symbolCounts).filter((s) => symbolCounts[s] > 1);
+
+  // Existing positions for the selected stock in the buy order form
+  const existingForCurrentStock = positions.filter((p) => p.symbol === currentSelectedStock?.symbol);
+  const totalExistingSharesForCurrentStock = existingForCurrentStock.reduce((sum, p) => sum + p.shares, 0);
+  const totalExistingCostForCurrentStock = existingForCurrentStock.reduce((sum, p) => sum + p.totalCost, 0);
+
   // Closed trades stats
   const totalClosedTradesCount = closedTrades.length;
   const winningTrades = closedTrades.filter((t) => t.isWin);
@@ -197,7 +235,48 @@ export const PaperTradingSimulator: React.FC<PaperTradingSimulatorProps> = ({
     Math.floor((new Date().getTime() - new Date(simulationStartDate).getTime()) / (1000 * 60 * 60 * 24)) + 1
   );
 
-  // Execute Simulated Buy Order
+  // Actual execute buy without prompt
+  const executeActualBuy = (
+    stock: StockData,
+    shares: number,
+    price: number,
+    grossCost: number,
+    fee: number,
+    totalRequired: number,
+    sl: number,
+    tp: number
+  ) => {
+    if (cashBalance < totalRequired) {
+      alert(`ยอดเงินจำลองคงเหลือไม่เพียงพอ! ต้องการ ${totalRequired.toLocaleString()} บาท (มี ${cashBalance.toLocaleString()} บาท)`);
+      return;
+    }
+
+    const newPosition: SimulatedPosition = {
+      id: `pos-${stock.symbol}-${Date.now()}`,
+      symbol: stock.symbol,
+      stockName: stock.name,
+      shares,
+      entryPrice: price,
+      entryDate: new Date().toISOString().split('T')[0],
+      stopLossPrice: sl,
+      targetPrice: tp,
+      currentPrice: price,
+      currency: stock.currency,
+      strategyTag: 'VALUE_INVESTING',
+      totalCost: grossCost,
+      feePaid: fee,
+    };
+
+    setCashBalance((prev) => prev - totalRequired);
+    setPositions((prev) => [newPosition, ...prev]);
+    showToast(`ส่งคำสั่งซื้อจำลอง ${stock.symbol} จำนวน ${shares.toLocaleString()} หุ้น เรียบร้อยแล้ว`, 'success');
+
+    try {
+      confetti({ particleCount: 50, spread: 50, origin: { y: 0.8 } });
+    } catch {}
+  };
+
+  // Execute Simulated Buy Order (Intercepts duplicates)
   const handleExecuteSimBuy = () => {
     if (!currentSelectedStock) return;
     const price = customEntryPrice || currentSelectedStock.currentPrice;
@@ -216,28 +295,203 @@ export const PaperTradingSimulator: React.FC<PaperTradingSimulatorProps> = ({
     const sl = useAtrBuffer ? Number((price - 1.5 * atr14).toFixed(2)) : Number((price - 2 * tick).toFixed(2));
     const tp = Number((price + (price - sl) * 2.5).toFixed(2)); // 1:2.5 R:R
 
+    // Check if duplicate stock already exists in portfolio
+    const matchingPositions = positions.filter((p) => p.symbol === currentSelectedStock.symbol);
+    if (matchingPositions.length > 0) {
+      // Open duplicate prompt modal to let user choose
+      setDuplicateOrderPrompt({
+        stock: currentSelectedStock,
+        shares: orderShares,
+        price,
+        grossCost,
+        fee,
+        totalRequired,
+        sl,
+        tp,
+        existingPositions: matchingPositions,
+      });
+      return;
+    }
+
+    executeActualBuy(currentSelectedStock, orderShares, price, grossCost, fee, totalRequired, sl, tp);
+  };
+
+  // Confirm adding new tranche when duplicate prompt is open
+  const handleConfirmAddTranche = () => {
+    if (!duplicateOrderPrompt) return;
+    const { stock, shares, price, grossCost, fee, totalRequired, sl, tp } = duplicateOrderPrompt;
+    setDuplicateOrderPrompt(null);
+    executeActualBuy(stock, shares, price, grossCost, fee, totalRequired, sl, tp);
+  };
+
+  // Confirm merging tranches and averaging cost when duplicate prompt is open
+  const handleConfirmMergePrompt = () => {
+    if (!duplicateOrderPrompt) return;
+    const { stock, shares, grossCost, fee, totalRequired, existingPositions } = duplicateOrderPrompt;
+
+    if (cashBalance < totalRequired) {
+      alert(`ยอดเงินจำลองคงเหลือไม่เพียงพอสำหรับการรวมยอด! ต้องการ ${totalRequired.toLocaleString()} บาท`);
+      return;
+    }
+
+    const totalExistingShares = existingPositions.reduce((sum, p) => sum + p.shares, 0);
+    const totalExistingCost = existingPositions.reduce((sum, p) => sum + p.totalCost, 0);
+    const totalExistingFee = existingPositions.reduce((sum, p) => sum + p.feePaid, 0);
+
+    const mergedShares = totalExistingShares + shares;
+    const mergedGrossCost = totalExistingCost + grossCost;
+    const mergedFee = totalExistingFee + fee;
+    const avgEntryPrice = Number((mergedGrossCost / mergedShares).toFixed(2));
+
+    const fresh = allStocks.find((s) => s.symbol === stock.symbol);
+    const currentP = fresh ? fresh.currentPrice : stock.currentPrice;
+    const atr14 = Number((avgEntryPrice * 0.022).toFixed(2));
+    const tick = avgEntryPrice < 2 ? 0.01 : avgEntryPrice < 5 ? 0.02 : avgEntryPrice < 10 ? 0.05 : avgEntryPrice < 25 ? 0.10 : avgEntryPrice < 100 ? 0.25 : 0.50;
+    const sl = Number((avgEntryPrice - 1.5 * atr14).toFixed(2));
+    const tp = Number((avgEntryPrice + (avgEntryPrice - sl) * 2.5).toFixed(2));
+
+    const mergedPos: SimulatedPosition = {
+      ...existingPositions[0],
+      id: `pos-${stock.symbol}-merged-${Date.now()}`,
+      shares: mergedShares,
+      entryPrice: avgEntryPrice,
+      totalCost: mergedGrossCost,
+      feePaid: mergedFee,
+      stopLossPrice: sl,
+      targetPrice: tp,
+      currentPrice: currentP,
+    };
+
+    setCashBalance((prev) => prev - totalRequired);
+    setPositions((prev) => [mergedPos, ...prev.filter((p) => p.symbol !== stock.symbol)]);
+    setDuplicateOrderPrompt(null);
+    showToast(`รวมไม้และเฉลี่ยต้นทุน ${stock.symbol} เป็น ${mergedShares.toLocaleString()} หุ้น (ต้นทุนเฉลี่ย ${avgEntryPrice} ฿) เรียบร้อย`, 'success');
+  };
+
+  // Confirm replacing existing positions with this new order (refunds old and buys new)
+  const handleConfirmReplacePrompt = () => {
+    if (!duplicateOrderPrompt) return;
+    const { stock, shares, price, grossCost, fee, totalRequired, sl, tp, existingPositions } = duplicateOrderPrompt;
+
+    // Refund old positions
+    const oldRefund = existingPositions.reduce((sum, p) => sum + p.totalCost + p.feePaid, 0);
+    const netCashAfterRefund = cashBalance + oldRefund;
+
+    if (netCashAfterRefund < totalRequired) {
+      alert(`ยอดเงินจำลองคงเหลือไม่เพียงพอหลังจากหักลบ!`);
+      return;
+    }
+
     const newPosition: SimulatedPosition = {
-      id: `pos-${currentSelectedStock.symbol}-${Date.now()}`,
-      symbol: currentSelectedStock.symbol,
-      stockName: currentSelectedStock.name,
-      shares: orderShares,
+      id: `pos-${stock.symbol}-${Date.now()}`,
+      symbol: stock.symbol,
+      stockName: stock.name,
+      shares,
       entryPrice: price,
       entryDate: new Date().toISOString().split('T')[0],
       stopLossPrice: sl,
       targetPrice: tp,
       currentPrice: price,
-      currency: currentSelectedStock.currency,
+      currency: stock.currency,
       strategyTag: 'VALUE_INVESTING',
       totalCost: grossCost,
       feePaid: fee,
     };
 
-    setCashBalance((prev) => prev - totalRequired);
-    setPositions((prev) => [newPosition, ...prev]);
+    setCashBalance(netCashAfterRefund - totalRequired);
+    setPositions((prev) => [newPosition, ...prev.filter((p) => p.symbol !== stock.symbol)]);
+    setDuplicateOrderPrompt(null);
+    showToast(`ลบรายการเดิมของ ${stock.symbol} และแทนที่ด้วยคำสั่งซื้อใหม่ ${shares.toLocaleString()} หุ้น เรียบร้อย (ปรับคืนส่วนต่างเงินสด)`, 'info');
+  };
 
-    try {
-      confetti({ particleCount: 50, spread: 50, origin: { y: 0.8 } });
-    } catch {}
+  // Delete single position and refund cash
+  const handleDeletePosition = (position: SimulatedPosition) => {
+    const refundAmount = position.totalCost + position.feePaid;
+    setCashBalance((prev) => prev + refundAmount);
+    setPositions((prev) => prev.filter((p) => p.id !== position.id));
+    setPositionToDelete(null);
+    showToast(`ลบ ${position.symbol} (${position.shares.toLocaleString()} หุ้น) ออกจากพอร์ตจำลองแล้ว (คืนเงินสด ${refundAmount.toLocaleString()} ฿)`, 'info');
+  };
+
+  // Delete all positions for a symbol and refund cash
+  const handleDeleteAllBySymbol = (symbol: string) => {
+    const matching = positions.filter((p) => p.symbol === symbol);
+    if (matching.length === 0) return;
+    const totalRefund = matching.reduce((sum, p) => sum + p.totalCost + p.feePaid, 0);
+    const totalShares = matching.reduce((sum, p) => sum + p.shares, 0);
+
+    setCashBalance((prev) => prev + totalRefund);
+    setPositions((prev) => prev.filter((p) => p.symbol !== symbol));
+    setSymbolToDeleteAll(null);
+    showToast(`ลบหุ้น ${symbol} ทั้งหมด (${totalShares.toLocaleString()} หุ้น) ออกจากพอร์ตจำลองแล้ว (คืนเงินสด ${totalRefund.toLocaleString()} ฿)`, 'info');
+  };
+
+  // Remove duplicate tranches across entire portfolio (keeps first tranche, refunds duplicates)
+  const handleCleanAllDuplicatesInPortfolio = () => {
+    let totalRefunded = 0;
+    let removedCount = 0;
+    const seen = new Set<string>();
+    const keepPositions: SimulatedPosition[] = [];
+
+    for (const pos of positions) {
+      if (!seen.has(pos.symbol)) {
+        seen.add(pos.symbol);
+        keepPositions.push(pos);
+      } else {
+        totalRefunded += (pos.totalCost + pos.feePaid);
+        removedCount += 1;
+      }
+    }
+
+    if (removedCount > 0) {
+      setCashBalance((prev) => prev + totalRefunded);
+      setPositions(keepPositions);
+      showToast(`ลบไม้ที่ส่งซ้ำออก ${removedCount} รายการ สำเร็จ (คืนเงินสด ${totalRefunded.toLocaleString()} ฿)`, 'success');
+    }
+  };
+
+  // Merge all duplicate tranches across entire portfolio
+  const handleMergeAllDuplicatesInPortfolio = () => {
+    const symbols = Array.from(new Set(positions.map((p) => p.symbol)));
+    let mergedCount = 0;
+    let newPositions = [...positions];
+
+    symbols.forEach((sym) => {
+      const matching = newPositions.filter((p) => p.symbol === sym);
+      if (matching.length > 1) {
+        const totalShares = matching.reduce((sum, p) => sum + p.shares, 0);
+        const totalGrossCost = matching.reduce((sum, p) => sum + p.totalCost, 0);
+        const totalFees = matching.reduce((sum, p) => sum + p.feePaid, 0);
+        const avgEntryPrice = Number((totalGrossCost / totalShares).toFixed(2));
+
+        const fresh = allStocks.find((s) => s.symbol === sym);
+        const currentP = fresh ? fresh.currentPrice : matching[0].currentPrice;
+        const atr14 = Number((avgEntryPrice * 0.022).toFixed(2));
+        const tick = avgEntryPrice < 2 ? 0.01 : avgEntryPrice < 5 ? 0.02 : avgEntryPrice < 10 ? 0.05 : avgEntryPrice < 25 ? 0.10 : avgEntryPrice < 100 ? 0.25 : 0.50;
+        const sl = Number((avgEntryPrice - 1.5 * atr14).toFixed(2));
+        const tp = Number((avgEntryPrice + (avgEntryPrice - sl) * 2.5).toFixed(2));
+
+        const mergedPos: SimulatedPosition = {
+          ...matching[0],
+          id: `pos-${sym}-merged-${Date.now()}`,
+          shares: totalShares,
+          entryPrice: avgEntryPrice,
+          totalCost: totalGrossCost,
+          feePaid: totalFees,
+          stopLossPrice: sl,
+          targetPrice: tp,
+          currentPrice: currentP,
+        };
+
+        newPositions = [mergedPos, ...newPositions.filter((p) => p.symbol !== sym)];
+        mergedCount += 1;
+      }
+    });
+
+    if (mergedCount > 0) {
+      setPositions(newPositions);
+      showToast(`รวมหุ้นซ้ำจำนวน ${mergedCount} ตัว ให้เป็นไม้เดียวพร้อมเฉลี่ยต้นทุนเรียบร้อย`, 'success');
+    }
   };
 
   // Execute Simulated Sell Order (Close Position)
@@ -282,7 +536,32 @@ export const PaperTradingSimulator: React.FC<PaperTradingSimulatorProps> = ({
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-300">
+    <div className="space-y-6 animate-in fade-in duration-300 relative">
+      {/* Toast Notification */}
+      {toastNotification && (
+        <div className="fixed top-5 right-5 z-50 animate-in slide-in-from-top-3 fade-in duration-200 max-w-md">
+          <div className={`px-4 py-3 rounded-2xl shadow-2xl border flex items-center space-x-2.5 text-xs font-bold ${
+            toastNotification.type === 'success'
+              ? 'bg-emerald-950/95 text-emerald-100 border-emerald-500/50 backdrop-blur-md'
+              : toastNotification.type === 'warning'
+              ? 'bg-amber-950/95 text-amber-100 border-amber-500/50 backdrop-blur-md'
+              : 'bg-slate-900/95 text-white border-slate-700 backdrop-blur-md'
+          }`}>
+            {toastNotification.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />}
+            {toastNotification.type === 'warning' && <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />}
+            {toastNotification.type === 'info' && <Info className="w-4 h-4 text-sky-400 shrink-0" />}
+            <span className="flex-1">{toastNotification.message}</span>
+            <button
+              type="button"
+              onClick={() => setToastNotification(null)}
+              className="ml-2 text-slate-400 hover:text-white cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 1. TOP BANNER: ZERO-RISK ASSURANCE & 1-3 MONTHS SIMULATION HEADER */}
       <div className="rounded-3xl border border-emerald-300 dark:border-emerald-800/80 bg-gradient-to-r from-emerald-50 via-teal-50 to-white dark:from-[#0f1f17] dark:via-[#11241c] dark:to-[#121215] p-5 sm:p-7 shadow-xs">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
@@ -414,6 +693,29 @@ export const PaperTradingSimulator: React.FC<PaperTradingSimulatorProps> = ({
           </div>
         </div>
 
+        {/* Existing Duplicate Warning for currently selected stock */}
+        {existingForCurrentStock.length > 0 && (
+          <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div className="flex items-start sm:items-center space-x-2.5 text-amber-800 dark:text-amber-300">
+              <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5 sm:mt-0" />
+              <div>
+                <span className="font-black">ตรวจพบหุ้น {currentSelectedStock.symbol} อยู่ในพอร์ตแล้ว:</span>{' '}
+                <span>{existingForCurrentStock.length} ไม้ รวม {totalExistingSharesForCurrentStock.toLocaleString()} หุ้น (ต้นทุนสะสม {totalExistingCostForCurrentStock.toLocaleString()} ฿)</span>
+              </div>
+            </div>
+            <div className="flex items-center space-x-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setSymbolToDeleteAll(currentSelectedStock.symbol)}
+                className="px-3 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500 hover:text-white text-rose-700 dark:text-rose-300 text-xs font-bold border border-rose-300 dark:border-rose-800 transition-all cursor-pointer flex items-center space-x-1"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>ลบ {currentSelectedStock.symbol} ทั้งหมดออกจากพอร์ต</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Stock Selector */}
           <div>
@@ -509,17 +811,57 @@ export const PaperTradingSimulator: React.FC<PaperTradingSimulatorProps> = ({
 
       {/* 4. CURRENT SIMULATED HOLDINGS (หุ้นจำลองที่ถืออยู่) */}
       <div className="bg-white dark:bg-[#121215] p-5 sm:p-6 rounded-3xl border border-slate-200 dark:border-zinc-800 shadow-xs space-y-4">
-        <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-zinc-800">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-100 dark:border-zinc-800">
           <div>
             <h3 className="text-base font-black text-slate-900 dark:text-white flex items-center space-x-2">
               <Layers className="w-4 h-4 text-indigo-500" />
               <span>หุ้นจำลองที่กำลังถือครอง ({positions.length} รายการ)</span>
             </h3>
             <p className="text-xs text-slate-500 dark:text-zinc-400">
-              สถานะกำไรขาดทุนแบบเรียลไทม์ พร้อมปุ่มตัดขาดทุน (SL) และขายทำกำไร (TP)
+              สถานะกำไรขาดทุนแบบเรียลไทม์ พร้อมปุ่มตัดขาดทุน (SL), ทำกำไร (TP) และปุ่มลบหุ้นออก
             </p>
           </div>
+
+          {positions.length > 0 && (
+            <div className="flex items-center space-x-2 text-xs text-slate-400">
+              <span>สามารถกดลบออเดอร์ที่ส่งซ้ำเพื่อรับเงินสดคืนได้ทันที</span>
+            </div>
+          )}
         </div>
+
+        {/* Duplicate Symbols Banner across portfolio */}
+        {duplicateSymbols.length > 0 && (
+          <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div className="flex items-start md:items-center space-x-2.5 text-amber-900 dark:text-amber-200 text-xs">
+              <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5 md:mt-0" />
+              <div>
+                <span className="font-bold">ตรวจพบหุ้นที่ส่งคำสั่งซื้อซ้ำในพอร์ตจำลอง:</span>{' '}
+                <span className="font-black text-amber-700 dark:text-amber-300">{duplicateSymbols.join(', ')}</span>
+                <span className="text-[11px] text-slate-500 dark:text-zinc-400 block sm:inline sm:ml-1">
+                  (คุณสามารถเลือกลบเฉพาะไม้ที่ส่งซ้ำ หรือรวมไม้เพื่อเฉลี่ยต้นทุนได้ทันที)
+                </span>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={handleCleanAllDuplicatesInPortfolio}
+                className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-xs transition-all cursor-pointer flex items-center space-x-1"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>ลบไม้ที่ส่งซ้ำออกทั้งหมด (คืนเงิน)</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleMergeAllDuplicatesInPortfolio}
+                className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-xs transition-all cursor-pointer flex items-center space-x-1"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>รวมไม้ซ้ำทั้งหมด (เฉลี่ยต้นทุน)</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {positions.length === 0 ? (
           <div className="p-8 text-center rounded-2xl border border-dashed border-slate-200 dark:border-zinc-800 text-slate-400">
@@ -535,11 +877,16 @@ export const PaperTradingSimulator: React.FC<PaperTradingSimulatorProps> = ({
               const currentValue = currentP * pos.shares;
               const profitBaht = currentValue - pos.totalCost;
               const profitPercent = Number(((profitBaht / pos.totalCost) * 100).toFixed(2));
+              const isDuplicate = symbolCounts[pos.symbol] > 1;
 
               return (
                 <div
                   key={pos.id}
-                  className="p-4 rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50/50 dark:bg-[#18181B] flex flex-col justify-between space-y-3"
+                  className={`p-4 rounded-2xl border ${
+                    isDuplicate
+                      ? 'border-amber-400/60 dark:border-amber-700/60 bg-amber-50/20 dark:bg-amber-950/10'
+                      : 'border-slate-200 dark:border-zinc-800 bg-slate-50/50 dark:bg-[#18181B]'
+                  } flex flex-col justify-between space-y-3`}
                 >
                   <div className="flex items-start justify-between">
                     <div>
@@ -550,6 +897,12 @@ export const PaperTradingSimulator: React.FC<PaperTradingSimulatorProps> = ({
                         <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-zinc-800 text-slate-600 font-bold">
                           {pos.shares.toLocaleString()} หุ้น
                         </span>
+                        {isDuplicate && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 font-bold border border-amber-500/30 flex items-center space-x-1">
+                            <AlertTriangle className="w-3 h-3" />
+                            <span>ถือซ้ำ ({symbolCounts[pos.symbol]} ไม้)</span>
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs text-slate-500 mt-0.5">{pos.stockName}</p>
                     </div>
@@ -580,14 +933,14 @@ export const PaperTradingSimulator: React.FC<PaperTradingSimulatorProps> = ({
                     </div>
                   </div>
 
-                  {/* Actions: Close Position */}
+                  {/* Actions: Close Position & Delete/Remove */}
                   <div className="flex items-center space-x-2 pt-1">
                     <button
                       type="button"
                       onClick={() => handleClosePosition(pos, 'TAKE_PROFIT')}
                       className="flex-1 py-1.5 px-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500 hover:text-white text-emerald-700 dark:text-emerald-300 text-xs font-bold border border-emerald-500/30 transition-all cursor-pointer"
                     >
-                      🏆 ขายทำกำไร (TP)
+                      🏆 ทำกำไร (TP)
                     </button>
                     <button
                       type="button"
@@ -595,6 +948,15 @@ export const PaperTradingSimulator: React.FC<PaperTradingSimulatorProps> = ({
                       className="flex-1 py-1.5 px-2 rounded-xl bg-rose-500/15 hover:bg-rose-500 hover:text-white text-rose-700 dark:text-rose-300 text-xs font-bold border border-rose-500/30 transition-all cursor-pointer"
                     >
                       🛑 ตัดขาดทุน (SL)
+                    </button>
+                    <button
+                      type="button"
+                      title="ลบรายการนี้ออกจากพอร์ตจำลอง (คืนเงินสด)"
+                      onClick={() => setPositionToDelete(pos)}
+                      className="py-1.5 px-2.5 rounded-xl bg-slate-200/80 dark:bg-zinc-800 hover:bg-rose-500 hover:text-white text-slate-700 dark:text-zinc-300 text-xs font-bold transition-all cursor-pointer flex items-center justify-center space-x-1 border border-slate-300/60 dark:border-zinc-700"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                      <span className="hidden sm:inline">ลบออก</span>
                     </button>
                   </div>
                 </div>
@@ -680,16 +1042,218 @@ export const PaperTradingSimulator: React.FC<PaperTradingSimulatorProps> = ({
               <button
                 type="button"
                 onClick={() => setIsResetConfirmOpen(false)}
-                className="flex-1 py-2 rounded-xl text-xs font-bold border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-300 hover:bg-slate-100"
+                className="flex-1 py-2 rounded-xl text-xs font-bold border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-300 hover:bg-slate-100 cursor-pointer"
               >
                 ยกเลิก
               </button>
               <button
                 type="button"
                 onClick={handleResetSimulation}
-                className="flex-1 py-2 rounded-xl text-xs font-black bg-rose-600 hover:bg-rose-500 text-white shadow-xs"
+                className="flex-1 py-2 rounded-xl text-xs font-black bg-rose-600 hover:bg-rose-500 text-white shadow-xs cursor-pointer"
               >
                 ยืนยันรีเซ็ต
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Duplicate Order Handling Modal */}
+      {duplicateOrderPrompt && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#18181B] rounded-3xl max-w-md w-full p-6 border border-amber-300 dark:border-amber-800 space-y-5 shadow-2xl animate-in zoom-in-95 duration-150">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/15 text-amber-500 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-base font-black text-slate-900 dark:text-white">
+                    ตรวจพบการส่งคำสั่งซื้อหุ้นซ้ำ
+                  </h4>
+                  <p className="text-xs text-slate-500">
+                    {duplicateOrderPrompt.stock.symbol} ({duplicateOrderPrompt.stock.name})
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDuplicateOrderPrompt(null)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Existing vs New Order Comparison */}
+            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 space-y-2 text-xs">
+              <div className="flex justify-between items-center text-slate-500 dark:text-zinc-400">
+                <span>หุ้นเดิมในพอร์ต:</span>
+                <span className="font-bold text-slate-800 dark:text-zinc-200">
+                  {duplicateOrderPrompt.existingPositions.reduce((sum, p) => sum + p.shares, 0).toLocaleString()} หุ้น ({duplicateOrderPrompt.existingPositions.length} ไม้)
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-slate-500 dark:text-zinc-400">
+                <span>คำสั่งซื้อใหม่ที่เพิ่งส่ง:</span>
+                <span className="font-black text-emerald-600 dark:text-emerald-400">
+                  +{duplicateOrderPrompt.shares.toLocaleString()} หุ้น @ {duplicateOrderPrompt.price} ฿ ({duplicateOrderPrompt.totalRequired.toLocaleString()} ฿)
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-2.5">
+              <span className="text-xs font-bold text-slate-500 block">
+                เลือกรูปแบบที่คุณต้องการจัดการ:
+              </span>
+
+              {/* Option 1: Replace old with new (useful if user accidentally bought duplicate or wanted to change order) */}
+              <button
+                type="button"
+                onClick={handleConfirmReplacePrompt}
+                className="w-full p-3 rounded-2xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/50 dark:bg-rose-950/20 hover:bg-rose-100 dark:hover:bg-rose-900/30 text-left transition-all cursor-pointer group"
+              >
+                <div className="flex items-center justify-between mb-0.5">
+                  <span className="text-xs font-black text-rose-700 dark:text-rose-300 flex items-center space-x-1.5">
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>ลบของเดิมออก แล้วแทนที่ด้วยคำสั่งซื้อใหม่นี้</span>
+                  </span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-700 dark:text-rose-300 font-bold">
+                    แนะนำถ้าส่งผิด
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                  คืนเงินสดของไม้เดิมเข้ากระเป๋าเต็มจำนวน แล้วเปิดไม้ใหม่นี้แทนที่
+                </p>
+              </button>
+
+              {/* Option 2: Merge and average entry price */}
+              <button
+                type="button"
+                onClick={handleConfirmMergePrompt}
+                className="w-full p-3 rounded-2xl border border-indigo-200 dark:border-indigo-900/60 bg-indigo-50/50 dark:bg-indigo-950/20 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 text-left transition-all cursor-pointer"
+              >
+                <div className="flex items-center justify-between mb-0.5">
+                  <span className="text-xs font-black text-indigo-700 dark:text-indigo-300 flex items-center space-x-1.5">
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>รวมเป็นไม้เดียวและคำนวณราคาเฉลี่ยใหม่ (Merge)</span>
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                  รวมจำนวนหุ้นทั้งหมดเข้าด้วยกัน และปรับต้นทุนเฉลี่ยตามน้ำหนักจริง
+                </p>
+              </button>
+
+              {/* Option 3: Keep as separate tranche */}
+              <button
+                type="button"
+                onClick={handleConfirmAddTranche}
+                className="w-full p-3 rounded-2xl border border-slate-200 dark:border-zinc-700 hover:bg-slate-100 dark:hover:bg-zinc-800 text-left transition-all cursor-pointer"
+              >
+                <div className="flex items-center justify-between mb-0.5">
+                  <span className="text-xs font-black text-slate-700 dark:text-zinc-200 flex items-center space-x-1.5">
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>ถือเป็นไม้อิสระเพิ่มอีก 1 ไม้ (Add Tranche)</span>
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                  บันทึกแยกเป็นอีกบรรทัดหนึ่ง เพื่อจับจังหวะขายทำกำไรหรือ Stop Loss แยกกัน
+                </p>
+              </button>
+            </div>
+
+            <div className="pt-2 border-t border-slate-100 dark:border-zinc-800 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setDuplicateOrderPrompt(null)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:text-slate-800 dark:hover:text-zinc-200 cursor-pointer"
+              >
+                ยกเลิกคำสั่งซื้อนี้
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Single Position Modal */}
+      {positionToDelete && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#18181B] rounded-3xl max-w-sm w-full p-6 border border-slate-200 dark:border-zinc-800 space-y-4 shadow-xl animate-in zoom-in-95 duration-150">
+            <div className="w-10 h-10 rounded-2xl bg-rose-500/15 text-rose-500 flex items-center justify-center mx-auto">
+              <Trash2 className="w-5 h-5" />
+            </div>
+            <div className="text-center space-y-1">
+              <h4 className="text-base font-black text-slate-900 dark:text-white">
+                ลบ {positionToDelete.symbol} ออกจากพอร์ตจำลอง?
+              </h4>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                จำนวน {positionToDelete.shares.toLocaleString()} หุ้น (ต้นทุน {positionToDelete.entryPrice} ฿)
+              </p>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 text-xs space-y-1.5">
+              <div className="flex justify-between text-slate-500 dark:text-zinc-400">
+                <span>คืนเงินสดเข้ากระเป๋า:</span>
+                <span className="font-black text-emerald-600 dark:text-emerald-400">
+                  +{(positionToDelete.totalCost + positionToDelete.feePaid).toLocaleString()} ฿
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                *การลบนี้เป็นเพียงการแก้ไขพอร์ต จะไม่มีผลกระทบต่อสถิติ Win Rate หรือประวัติการปิดสถานะ
+              </p>
+            </div>
+
+            <div className="flex space-x-2">
+              <button
+                type="button"
+                onClick={() => setPositionToDelete(null)}
+                className="flex-1 py-2 rounded-xl text-xs font-bold border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-300 hover:bg-slate-100 cursor-pointer"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDeletePosition(positionToDelete)}
+                className="flex-1 py-2 rounded-xl text-xs font-black bg-rose-600 hover:bg-rose-500 text-white shadow-xs cursor-pointer flex items-center justify-center space-x-1"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>ยืนยันลบและคืนเงิน</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete All Positions for a Symbol Modal */}
+      {symbolToDeleteAll && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#18181B] rounded-3xl max-w-sm w-full p-6 border border-slate-200 dark:border-zinc-800 space-y-4 shadow-xl animate-in zoom-in-95 duration-150">
+            <div className="w-10 h-10 rounded-2xl bg-rose-500/15 text-rose-500 flex items-center justify-center mx-auto">
+              <Trash2 className="w-5 h-5" />
+            </div>
+            <div className="text-center space-y-1">
+              <h4 className="text-base font-black text-slate-900 dark:text-white">
+                ลบหุ้น {symbolToDeleteAll} ทุกไม้ออกจากพอร์ต?
+              </h4>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                ระบบจะลบทุกรายการของหุ้นนี้ในพอร์ตจำลอง และคืนเงินสดเต็มจำนวน
+              </p>
+            </div>
+
+            <div className="flex space-x-2">
+              <button
+                type="button"
+                onClick={() => setSymbolToDeleteAll(null)}
+                className="flex-1 py-2 rounded-xl text-xs font-bold border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-300 hover:bg-slate-100 cursor-pointer"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDeleteAllBySymbol(symbolToDeleteAll)}
+                className="flex-1 py-2 rounded-xl text-xs font-black bg-rose-600 hover:bg-rose-500 text-white shadow-xs cursor-pointer flex items-center justify-center space-x-1"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>ยืนยันลบทั้งหมด</span>
               </button>
             </div>
           </div>

@@ -6,6 +6,8 @@ import { AIPortfolioBuilder } from './components/AIPortfolioBuilder';
 import { MyPortfolioTracker } from './components/MyPortfolioTracker';
 import { ExecutiveSummaryCard } from './components/ExecutiveSummaryCard';
 import { FundamentalModule } from './components/FundamentalModule';
+import { AnnualFinancialTrendChart } from './components/AnnualFinancialTrendChart';
+import { ExecutiveGovernanceModule } from './components/ExecutiveGovernanceModule';
 import { TechnicalModule } from './components/TechnicalModule';
 import { TradeExecutionModule } from './components/TradeExecutionModule';
 import { StockScreenerModal } from './components/StockScreenerModal';
@@ -62,7 +64,8 @@ import {
   Zap,
   ShieldAlert,
   Flame,
-  RefreshCw
+  RefreshCw,
+  ArrowLeft
 } from 'lucide-react';
 
 export default function App() {
@@ -91,7 +94,78 @@ export default function App() {
   });
 
   // Active View Mode ('analysis' | 'my-portfolio' | 'portfolio' | 'day-trade' | 'paper-trade')
-  const [currentView, setCurrentView] = useState<'analysis' | 'my-portfolio' | 'portfolio' | 'day-trade' | 'paper-trade'>('analysis');
+  const [currentView, setCurrentView] = useState<'analysis' | 'my-portfolio' | 'portfolio' | 'day-trade' | 'paper-trade'>('portfolio');
+
+  // Navigation history stack for seamless "Previous Page" return
+  type AppView = 'analysis' | 'my-portfolio' | 'portfolio' | 'day-trade' | 'paper-trade';
+  const [navigationHistory, setNavigationHistory] = useState<AppView[]>(['portfolio']);
+
+  const getViewLabel = (view: AppView): string => {
+    switch (view) {
+      case 'portfolio':
+        return 'AI จัดพอร์ต';
+      case 'my-portfolio':
+        return 'พอร์ตของฉัน';
+      case 'day-trade':
+        return 'Day Trade';
+      case 'paper-trade':
+        return 'จำลองเทรด';
+      case 'analysis':
+        return 'วิเคราะห์หุ้นรายตัว & กราฟ';
+      default:
+        return 'หน้าก่อนหน้า';
+    }
+  };
+
+  const navigateToView = (nextView: AppView) => {
+    if (nextView === currentView) return;
+    setNavigationHistory((prev) => [...prev, currentView]);
+    setCurrentView(nextView);
+    try {
+      window.history.pushState({ view: nextView }, '', '');
+    } catch {
+      // ignore
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleGoBack = () => {
+    if (navigationHistory.length > 0) {
+      const nextStack = [...navigationHistory];
+      const prevView = nextStack.pop()!;
+      setNavigationHistory(nextStack);
+      setCurrentView(prevView);
+      try {
+        window.history.replaceState({ view: prevView }, '', '');
+      } catch {
+        // ignore
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      const fallback: AppView = currentView === 'analysis' ? 'portfolio' : 'analysis';
+      setCurrentView(fallback);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  useEffect(() => {
+    const onPopState = (e: PopStateEvent) => {
+      if (e.state && e.state.view) {
+        setCurrentView(e.state.view);
+      } else if (navigationHistory.length > 0) {
+        handleGoBack();
+      }
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [navigationHistory]);
+
+  const lastHistoryView = navigationHistory.length > 0
+    ? navigationHistory[navigationHistory.length - 1]
+    : (currentView === 'analysis' ? 'portfolio' : null);
+
+  const previousViewLabel = lastHistoryView ? getViewLabel(lastHistoryView) : 'หน้าก่อนหน้า';
+  const canGoBack = navigationHistory.length > 0 || currentView === 'analysis';
 
   // Day Trade Portfolio State
   const [dayTradePortfolio, setDayTradePortfolio] = useState<DayTradePortfolio>(() => {
@@ -421,7 +495,7 @@ export default function App() {
     const newPort = buildDayTradePortfolio(config.selectedStocks, config.capital, config.timeframe);
     setDayTradePortfolio(newPort);
     setTradingMode('DAY_TRADE');
-    setCurrentView('day-trade');
+    navigateToView('day-trade');
   };
 
   const handleAddStockToDayTradePortfolio = (stock: StockData, sourceOfIdea?: string) => {
@@ -584,7 +658,7 @@ export default function App() {
       stockData: allStocks.find(s => s.symbol === o.symbol) || currentStock,
     }));
     setUserPositions(prev => [...newPositions, ...prev]);
-    setCurrentView('my-portfolio');
+    navigateToView('my-portfolio');
   };
 
   const handleSyncAllPrices = () => {
@@ -776,7 +850,7 @@ export default function App() {
 
         setAllStocks((prev) => [newStock, ...prev.filter((s) => s.symbol !== newStock.symbol)]);
         setCurrentStock(newStock);
-        setCurrentView('analysis');
+        navigateToView('analysis');
       } else {
         alert(`ไม่สามารถค้นหาข้อมูลสำหรับ "${ticker}" กรุณาตรวจสอบตัวย่อสินทรัพย์อีกครั้ง`);
       }
@@ -851,7 +925,7 @@ export default function App() {
       stockData: item.stock,
     }));
     handleSetAllUserPositions(newPositions);
-    setCurrentView('my-portfolio');
+    navigateToView('my-portfolio');
   };
 
   const handleRemoveFromWatchlist = (symbol: string) => {
@@ -880,7 +954,7 @@ export default function App() {
         allStocks={allStocks}
         onSelectStock={(s) => {
           setCurrentStock(s);
-          setCurrentView('analysis');
+          navigateToView('analysis');
         }}
         onOpenScreener={() => setIsScreenerOpen(true)}
         onOpenWatchlist={() => setIsWatchlistOpen(true)}
@@ -894,7 +968,10 @@ export default function App() {
         onOpenMarketModal={() => setIsMarketModalOpen(true)}
         onSelectCategory={handleSelectCategory}
         currentView={currentView}
-        onChangeView={(v) => setCurrentView(v)}
+        onChangeView={(v) => navigateToView(v)}
+        canGoBack={canGoBack}
+        onGoBack={handleGoBack}
+        previousViewLabel={previousViewLabel}
         authUser={authUser}
         onLogout={handleLogout}
         onOpenObjectiveModal={() => setIsOnboardingModalOpen(true)}
@@ -942,7 +1019,7 @@ export default function App() {
               {currentView !== 'day-trade' && (
                 <button
                   type="button"
-                  onClick={() => setCurrentView('day-trade')}
+                  onClick={() => navigateToView('day-trade')}
                   className="px-3 py-1 rounded-xl bg-slate-950 text-amber-300 font-black text-[11px] shadow-sm hover:scale-105 transition-all cursor-pointer flex items-center space-x-1"
                 >
                   <span>เปิดเทอร์มินัล Day Trade</span>
@@ -1031,7 +1108,7 @@ export default function App() {
               key={stock.symbol}
               onClick={() => {
                 setCurrentStock(stock);
-                setCurrentView('analysis');
+                navigateToView('analysis');
               }}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center space-x-1.5 ${
                 currentStock.symbol === stock.symbol && currentView === 'analysis'
@@ -1059,7 +1136,7 @@ export default function App() {
         {/* Intuitive Beginner Guide & 4-Workspace Navigator */}
         <BeginnerGuideBanner
           currentView={currentView}
-          onChangeView={(v) => setCurrentView(v)}
+          onChangeView={(v) => navigateToView(v)}
         />
 
         {/* VIEW 1: DEDICATED AI INVESTOR PORTFOLIO BUILDER (5 - 8 STOCKS) */}
@@ -1070,7 +1147,7 @@ export default function App() {
             onUpdateInvestorProfile={(p) => setInvestorProfile(p)}
             onSelectStockForDeepAnalysis={(s) => {
               setCurrentStock(s);
-              setCurrentView('analysis');
+              navigateToView('analysis');
             }}
             onBatchAddToWatchlist={handleBatchAddToWatchlist}
             onOpenAIChat={() => setIsAIAdvisorOpen(true)}
@@ -1094,9 +1171,9 @@ export default function App() {
             onClosePosition={handleCloseUserPosition}
             onSelectStockForDeepAnalysis={(s) => {
               setCurrentStock(s);
-              setCurrentView('analysis');
+              navigateToView('analysis');
             }}
-            onSwitchToAIPortfolioBuilder={() => setCurrentView('portfolio')}
+            onSwitchToAIPortfolioBuilder={() => navigateToView('portfolio')}
             onOpenObjectiveModal={() => setIsOnboardingModalOpen(true)}
             onOpenAIChatWithContext={(prompt) => {
               setIsAIAdvisorOpen(true);
@@ -1107,28 +1184,47 @@ export default function App() {
         {/* VIEW 3: SINGLE STOCK ANALYSIS & TRADING PLAN */}
         {currentView === 'analysis' && (
           <div className="space-y-6">
-            {/* Quick Navigation / Switcher Banner */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-indigo-50/80 dark:bg-indigo-500/10 border border-indigo-200/80 dark:border-indigo-500/20 p-3.5 rounded-2xl">
-              <div className="flex items-center space-x-2 text-xs text-indigo-900 dark:text-indigo-200 font-bold">
-                <span className="p-1 rounded-md bg-indigo-200 dark:bg-indigo-500/30 text-indigo-700 dark:text-indigo-300">
-                  <LayoutDashboard className="w-3.5 h-3.5" />
-                </span>
-                <span>กำลังวิเคราะห์สินทรัพย์: <strong>{currentStock.symbol}</strong> ({currentStock.name})</span>
+            {/* Top Navigation & Back Button Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-[#111115] border-2 border-indigo-500/30 p-3.5 rounded-2xl shadow-sm">
+              <div className="flex items-center space-x-3">
+                <button
+                  id="btn-analysis-back-to-previous"
+                  type="button"
+                  onClick={handleGoBack}
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs sm:text-sm flex items-center space-x-2 shadow-sm transition-all cursor-pointer active:scale-95 group shrink-0"
+                  title={`ย้อนกลับไปหน้า: ${previousViewLabel}`}
+                >
+                  <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+                  <span>← ย้อนกลับ ({previousViewLabel})</span>
+                </button>
+                <div className="text-xs text-slate-600 dark:text-zinc-300 flex items-center space-x-1.5 font-medium">
+                  <span className="text-slate-400 dark:text-zinc-500">กราฟ & วิเคราะห์:</span>
+                  <strong className="text-indigo-600 dark:text-indigo-400 font-extrabold text-sm">{currentStock.symbol}</strong>
+                  <span className="hidden sm:inline text-slate-400">({currentStock.name})</span>
+                </div>
               </div>
+
               <div className="flex items-center space-x-2 shrink-0">
                 <button
-                  onClick={() => setCurrentView('my-portfolio')}
-                  className="text-xs font-bold px-3 py-1.5 rounded-xl bg-white dark:bg-[#18181B] hover:bg-slate-50 dark:hover:bg-zinc-800 text-slate-800 dark:text-zinc-200 border border-slate-200 dark:border-zinc-700 transition-all flex items-center space-x-1.5"
+                  onClick={() => navigateToView('portfolio')}
+                  className="text-xs font-bold px-3 py-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-500/20 hover:bg-indigo-100 dark:hover:bg-indigo-500/30 text-indigo-700 dark:text-indigo-300 transition-all flex items-center space-x-1.5 cursor-pointer"
                 >
-                  <PieChart className="w-3.5 h-3.5 text-indigo-500" />
-                  <span>ดูพอร์ตของฉัน ({userPositions.length})</span>
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                  <span>AI จัดพอร์ต</span>
                 </button>
                 <button
-                  onClick={() => setCurrentView('portfolio')}
-                  className="text-xs font-bold px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white transition-all flex items-center space-x-1.5 shadow-sm shadow-indigo-600/20"
+                  onClick={() => navigateToView('my-portfolio')}
+                  className="text-xs font-bold px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-800 dark:text-zinc-200 transition-all flex items-center space-x-1.5 cursor-pointer"
                 >
-                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                  <span>ให้ AI ช่วยจัดพอร์ต 5-8 ตัว ↗</span>
+                  <PieChart className="w-3.5 h-3.5 text-indigo-500" />
+                  <span>พอร์ตของฉัน ({userPositions.length})</span>
+                </button>
+                <button
+                  onClick={() => navigateToView('day-trade')}
+                  className="text-xs font-bold px-3 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-500/20 hover:bg-amber-100 text-amber-700 dark:text-amber-300 transition-all flex items-center space-x-1.5 cursor-pointer"
+                >
+                  <Zap className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Day Trade</span>
                 </button>
               </div>
             </div>
@@ -1138,6 +1234,8 @@ export default function App() {
               stock={currentStock}
               onOpenAIAnalysis={() => setIsAIAdvisorOpen(true)}
               onJumpToTradePlan={jumpToTradePlan}
+              onGoBack={handleGoBack}
+              previousViewLabel={previousViewLabel}
             />
 
             {/* Dual Core Grid: Fundamental & Technical */}
@@ -1145,8 +1243,26 @@ export default function App() {
               {/* Module 1: Fundamental & Valuation (What to Buy) */}
               <FundamentalModule stock={currentStock} />
 
-              {/* Module 2: Technical & Timing (When to Buy - Includes 1W, 1M, 3M, ALL) */}
-              <TechnicalModule stock={currentStock} />
+              {/* Module 2: Annual Financial Trend Line Chart (กำไรสุทธิสิ้นปี / หนี้สินสุทธิสิ้นปี / การเพิ่มทุนถ้ามี) */}
+              {currentStock.assetCategory !== 'FOREX' && !currentStock.forexMacro && (
+                <div id="section-annual-financial-trend">
+                  <AnnualFinancialTrendChart stock={currentStock} />
+                </div>
+              )}
+
+              {/* Module 2.5: Executive Governance & News Radar (ตรวจสอบธรรมาภิบาลผู้บริหาร & ข่าวสาร ก.ล.ต.) */}
+              {currentStock.assetCategory !== 'FOREX' && !currentStock.forexMacro && (
+                <div id="section-executive-governance">
+                  <ExecutiveGovernanceModule stock={currentStock} />
+                </div>
+              )}
+
+              {/* Module 3: Technical & Timing (When to Buy - Includes 1W, 1M, 3M, ALL) */}
+              <TechnicalModule
+                stock={currentStock}
+                onGoBack={handleGoBack}
+                previousViewLabel={previousViewLabel}
+              />
 
               {/* Module 3: Trade Execution & Position Sizing (How to Trade) */}
               <TradeExecutionModule
@@ -1156,6 +1272,19 @@ export default function App() {
                 onAddToUserPortfolio={handleAddFromTradeModule}
                 onOpenWorkingPaper={() => setIsWorkingPaperOpen(true)}
               />
+            </div>
+
+            {/* Floating Quick Return Pill on Long Scroll */}
+            <div className="fixed bottom-6 right-6 z-40">
+              <button
+                type="button"
+                onClick={handleGoBack}
+                className="px-4 py-2.5 rounded-2xl bg-slate-900/90 hover:bg-indigo-600 text-white font-black text-xs shadow-xl border border-white/20 backdrop-blur-md flex items-center space-x-2 transition-all cursor-pointer hover:scale-105 active:scale-95 group"
+                title={`คลิกเพื่อย้อนกลับไป: ${previousViewLabel}`}
+              >
+                <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform text-amber-300" />
+                <span>ย้อนกลับ ({previousViewLabel})</span>
+              </button>
             </div>
           </div>
         )}
@@ -1168,7 +1297,7 @@ export default function App() {
             onOpenSetupModal={() => setIsDayTradeSetupOpen(true)}
             onSelectStockForDeepAnalysis={(s) => {
               setCurrentStock(s);
-              setCurrentView('analysis');
+              navigateToView('analysis');
             }}
             onExecuteTrade={handleExecuteDayTrade}
             onOpenAIChatWithStock={(stock, prompt) => {
@@ -1191,7 +1320,7 @@ export default function App() {
             allStocks={allStocks}
             onSelectStock={(s) => {
               setCurrentStock(s);
-              setCurrentView('analysis');
+              navigateToView('analysis');
             }}
           />
         )}
@@ -1231,7 +1360,7 @@ export default function App() {
         lastSyncedTime={lastSyncedTime}
         onSelectStockToAnalyze={(stock) => {
           setCurrentStock(stock);
-          setCurrentView('analysis');
+          navigateToView('analysis');
         }}
       />
 
@@ -1257,11 +1386,11 @@ export default function App() {
         brokerCash={350000}
         onSaveProfileAndLaunchAI={(newProfile) => {
           setInvestorProfile(newProfile);
-          setCurrentView('portfolio');
+          navigateToView('portfolio');
         }}
         onSaveProfileAndGoDashboard={(newProfile) => {
           setInvestorProfile(newProfile);
-          setCurrentView('analysis');
+          navigateToView('analysis');
         }}
       />
 
@@ -1280,7 +1409,7 @@ export default function App() {
         stocks={allStocks}
         onSelectStock={(s) => {
           setCurrentStock(s);
-          setCurrentView('analysis');
+          navigateToView('analysis');
         }}
       />
 
@@ -1291,7 +1420,7 @@ export default function App() {
         watchlist={watchlist}
         onSelectStock={(s) => {
           setCurrentStock(s);
-          setCurrentView('analysis');
+          navigateToView('analysis');
         }}
         onRemoveItem={handleRemoveFromWatchlist}
       />
@@ -1304,7 +1433,7 @@ export default function App() {
         onAddStock={(newStk) => {
           setAllStocks((prev) => [newStk, ...prev.filter((s) => s.symbol.toUpperCase() !== newStk.symbol.toUpperCase())]);
           setCurrentStock(newStk);
-          setCurrentView('analysis');
+          navigateToView('analysis');
         }}
       />
 

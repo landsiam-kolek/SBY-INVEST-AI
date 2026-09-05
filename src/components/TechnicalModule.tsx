@@ -14,15 +14,22 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Zap,
-  Target
+  Target,
+  ArrowLeft
 } from 'lucide-react';
 import { StockData, PriceCandle } from '../types';
 
 interface TechnicalModuleProps {
   stock: StockData;
+  onGoBack?: () => void;
+  previousViewLabel?: string;
 }
 
-export const TechnicalModule: React.FC<TechnicalModuleProps> = ({ stock }) => {
+export const TechnicalModule: React.FC<TechnicalModuleProps> = ({ 
+  stock,
+  onGoBack,
+  previousViewLabel,
+}) => {
   const [timeframe, setTimeframe] = useState<'1W' | '1M' | '3M' | 'ALL'>('3M');
   const [showEMA20, setShowEMA20] = useState(true);
   const [showEMA50, setShowEMA50] = useState(true);
@@ -143,6 +150,18 @@ export const TechnicalModule: React.FC<TechnicalModuleProps> = ({ stock }) => {
         </div>
 
         <div className="flex items-center space-x-2">
+          {onGoBack && (
+            <button
+              id="tech-chart-back-btn"
+              type="button"
+              onClick={onGoBack}
+              className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs flex items-center space-x-1.5 shadow-xs transition-all cursor-pointer active:scale-95 group"
+              title={`ย้อนกลับไปหน้า: ${previousViewLabel || 'หน้าก่อนหน้า'}`}
+            >
+              <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
+              <span>← ย้อนกลับ ({previousViewLabel || 'หน้าก่อนหน้า'})</span>
+            </button>
+          )}
           <div className="px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-[#18181B] border border-slate-200 dark:border-zinc-800 text-right">
             <span className="text-[10px] text-slate-400 dark:text-zinc-500 block font-medium">คะแนนจังหวะเทคนิค</span>
             <span className="text-base font-black text-emerald-600 dark:text-emerald-400">
@@ -154,8 +173,20 @@ export const TechnicalModule: React.FC<TechnicalModuleProps> = ({ stock }) => {
 
       {/* Chart Controls & Timeframe Selector */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-        {/* Timeframe Buttons */}
-        <div className="flex items-center space-x-1 bg-slate-100 dark:bg-[#18181B] p-1 rounded-xl border border-slate-200 dark:border-zinc-800">
+        <div className="flex items-center space-x-2">
+          {onGoBack && (
+            <button
+              type="button"
+              onClick={onGoBack}
+              className="md:hidden px-2.5 py-1.5 rounded-xl bg-indigo-600 text-white text-xs font-bold flex items-center space-x-1 shadow-xs cursor-pointer"
+              title="ย้อนกลับไปหน้าก่อนหน้า"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>ย้อนกลับ</span>
+            </button>
+          )}
+          {/* Timeframe Buttons */}
+          <div className="flex items-center space-x-1 bg-slate-100 dark:bg-[#18181B] p-1 rounded-xl border border-slate-200 dark:border-zinc-800">
           {(['1W', '1M', '3M', 'ALL'] as const).map((tf) => (
             <button
               key={tf}
@@ -169,6 +200,7 @@ export const TechnicalModule: React.FC<TechnicalModuleProps> = ({ stock }) => {
               {tf === '1W' ? '1 สัปดาห์ (1W)' : tf === '1M' ? '1 เดือน' : tf === '3M' ? '3 เดือน' : 'ทั้งหมด'}
             </button>
           ))}
+          </div>
         </div>
 
         {/* Overlay Indicator Toggles */}

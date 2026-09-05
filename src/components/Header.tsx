@@ -23,7 +23,8 @@ import {
   Zap,
   RefreshCw,
   Clock,
-  FileSpreadsheet
+  FileSpreadsheet,
+  ArrowLeft
 } from 'lucide-react';
 import { StockData, AssetCategory, AuthUser, TradingMode } from '../types';
 import { SataRobotLogo } from './SataRobotLogo';
@@ -46,6 +47,10 @@ interface HeaderProps {
   // View mode, user auth and objectives
   currentView: 'analysis' | 'my-portfolio' | 'portfolio' | 'day-trade' | 'paper-trade';
   onChangeView: (view: 'analysis' | 'my-portfolio' | 'portfolio' | 'day-trade' | 'paper-trade') => void;
+  // Previous View & Back Navigation
+  canGoBack?: boolean;
+  onGoBack?: () => void;
+  previousViewLabel?: string;
   authUser: AuthUser | null;
   onLogout: () => void;
   onOpenObjectiveModal: () => void;
@@ -81,6 +86,9 @@ export const Header: React.FC<HeaderProps> = ({
   onSelectCategory,
   currentView,
   onChangeView,
+  canGoBack,
+  onGoBack,
+  previousViewLabel,
   authUser,
   onLogout,
   onOpenObjectiveModal,
@@ -282,6 +290,21 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
             </div>
           </div>
+
+          {/* Previous Page / Back Button (Active when navigating from previous view) */}
+          {onGoBack && (
+            <button
+              id="header-prev-page-btn"
+              type="button"
+              onClick={onGoBack}
+              className="flex items-center space-x-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black shadow-xs hover:shadow-sm transition-all cursor-pointer shrink-0 active:scale-95 mr-1 group"
+              title={`ย้อนกลับไปหน้า: ${previousViewLabel || 'หน้าก่อนหน้า'}`}
+            >
+              <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
+              <span className="hidden sm:inline">← ย้อนกลับ</span>
+              <span className="sm:hidden">กลับ</span>
+            </button>
+          )}
 
           {/* Primary View Switcher Tabs (Analysis vs My Portfolio vs AI Portfolio Builder vs Day Trade) */}
           <div className="flex items-center bg-slate-100 dark:bg-[#18181B] p-0.5 sm:p-1 rounded-2xl border border-slate-200/80 dark:border-zinc-800 text-xs font-bold shrink-0">

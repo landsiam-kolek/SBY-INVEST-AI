@@ -30,8 +30,14 @@ import {
   Sliders,
   RotateCcw,
   ArrowRight,
-  Scale
+  Scale,
+  Lightbulb,
+  ChevronDown,
+  ChevronUp,
+  Info
 } from 'lucide-react';
+import { TrafficStatusBadge } from './TrafficStatusBadge';
+import { StockReasonDetailModal } from './StockReasonDetailModal';
 import { 
   StockData, 
   InvestorProfile, 
@@ -90,7 +96,12 @@ export const AIPortfolioBuilder: React.FC<AIPortfolioBuilderProps> = ({
   const [copiedSummary, setCopiedSummary] = useState<boolean>(false);
   const [addedWatchlist, setAddedWatchlist] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'cards' | 'table'>('cards');
+  // View mode: 'table' (compact numbers-first matrix) vs 'cards' (classic detailed cards)
+  const [activeTab, setActiveTab] = useState<'cards' | 'table'>('table');
+  const [selectedReasonItem, setSelectedReasonItem] = useState<PortfolioItem | null>(null);
+  const [isReasonModalOpen, setIsReasonModalOpen] = useState<boolean>(false);
+  const [expandedRowSymbol, setExpandedRowSymbol] = useState<string | null>(null);
+  const [isSummaryCompact, setIsSummaryCompact] = useState<boolean>(true);
 
   // Edit Stock State
   const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null);
@@ -976,26 +987,72 @@ ${portfolio.items
               <span>เพิ่มหุ้นเข้าพอร์ต</span>
             </button>
 
-            <div className="flex items-center bg-slate-100 dark:bg-zinc-800 p-1 rounded-xl text-xs font-bold">
+            {/* View Mode Switcher with Restore Button */}
+            <div className="flex items-center bg-slate-100 dark:bg-zinc-800 p-1 rounded-xl text-xs font-bold border border-slate-200 dark:border-zinc-700/60">
               <button
-                onClick={() => setActiveTab('cards')}
-                className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
-                  activeTab === 'cards' ? 'bg-white dark:bg-[#121215] text-slate-900 dark:text-white shadow-xs' : 'text-slate-500 dark:text-zinc-400'
+                id="view-mode-table-btn"
+                onClick={() => setActiveTab('table')}
+                className={`px-3 py-1.5 rounded-lg transition-all flex items-center space-x-1.5 cursor-pointer ${
+                  activeTab === 'table'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
+                title="ตารางตัวเลขกระชับ (แสดงตัวเลขสำคัญ แยกหมวด indicators ชัดเจน)"
               >
-                การ์ดวิเคราะห์ & แก้ไข
+                <SlidersHorizontal className="w-3.5 h-3.5" />
+                <span>📊 ตารางตัวเลขกระชับ (แนะนำ)</span>
               </button>
               <button
-                onClick={() => setActiveTab('table')}
-                className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
-                  activeTab === 'table' ? 'bg-white dark:bg-[#121215] text-slate-900 dark:text-white shadow-xs' : 'text-slate-500 dark:text-zinc-400'
+                id="view-mode-cards-restore-btn"
+                onClick={() => setActiveTab('cards')}
+                className={`px-3 py-1.5 rounded-lg transition-all flex items-center space-x-1.5 cursor-pointer ${
+                  activeTab === 'cards'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
+                title="สลับกลับไปดูการ์ดแบบเดิม (Classic Cards View) ที่มีข้อความบรรยายละเอียด"
               >
-                ตารางเคาะซื้อ (Order Table)
+                <RotateCcw className="w-3.5 h-3.5 text-amber-300" />
+                <span>🔄 Restore การ์ดมุมมองเดิม</span>
               </button>
             </div>
           </div>
         </div>
+
+        {/* View Mode Context Helper Banner */}
+        {activeTab === 'table' ? (
+          <div className="p-3 bg-indigo-50/80 dark:bg-indigo-950/30 border border-indigo-200/60 dark:border-indigo-500/30 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+            <div className="flex items-start sm:items-center space-x-2 text-indigo-950 dark:text-indigo-200">
+              <span className="p-1 rounded-lg bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-bold shrink-0 mt-0.5 sm:mt-0">
+                💡 โหมดตารางตัวเลขกระชับ:
+              </span>
+              <span>
+                สรุปข้อมูลหุ้นทั้งหมดเป็นตัวเลขชัดเจน ไม่รกตา แยกตัวชี้วัดออกเป็นหมวดๆ และเก็บคำอธิบายเหตุผลไว้ท้ายบรรทัดหุ้นแต่ละตัว (คลิก <strong>[ดูเหตุผล & Indicators]</strong>)
+              </span>
+            </div>
+            <button
+              onClick={() => setActiveTab('cards')}
+              className="text-[11px] px-2.5 py-1 rounded-xl bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 font-bold hover:bg-slate-50 dark:hover:bg-zinc-700 transition-colors border border-slate-200 dark:border-zinc-700 flex items-center space-x-1 cursor-pointer shrink-0 self-start sm:self-auto"
+              title="สลับกลับไปดูการ์ดแบบเดิม"
+            >
+              <RotateCcw className="w-3 h-3 text-amber-500" />
+              <span>Restore การ์ดเดิม</span>
+            </button>
+          </div>
+        ) : (
+          <div className="p-3 bg-slate-100 dark:bg-zinc-900/80 border border-slate-200 dark:border-zinc-800 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs text-slate-600 dark:text-zinc-400">
+            <div className="flex items-center space-x-2">
+              <span>📌 กำลังแสดงผลด้วย <strong>มุมมองการ์ดเดิม (Classic Cards)</strong> — หากมีหุ้นหลายตัวและข้อความเยอะ สามารถสลับไปใช้ <strong>ตารางตัวเลขกระชับ</strong> ได้</span>
+            </div>
+            <button
+              onClick={() => setActiveTab('table')}
+              className="text-[11px] px-3 py-1 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-500 transition-colors flex items-center space-x-1 cursor-pointer shrink-0 self-start sm:self-auto"
+            >
+              <SlidersHorizontal className="w-3 h-3" />
+              <span>สลับไปตารางตัวเลขกระชับ</span>
+            </button>
+          </div>
+        )}
 
         {/* VIEW 1: DETAILED ACTION CARDS WITH EDIT & DELETE BUTTONS */}
         {activeTab === 'cards' && (
@@ -1149,85 +1206,264 @@ ${portfolio.items
           </div>
         )}
 
-        {/* VIEW 2: ORDER & EXECUTION TABLE WITH EDIT & DELETE CONTROLS */}
+        {/* VIEW 2: COMPACT QUANTITATIVE MATRIX TABLE WITH GROUPED INDICATORS & RESTORE */}
         {activeTab === 'table' && (
           <div className="bg-white dark:bg-[#121215] border border-slate-200 dark:border-zinc-800 rounded-3xl overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs text-slate-700 dark:text-zinc-300">
                 <thead className="bg-slate-50 dark:bg-zinc-900 border-b border-slate-200 dark:border-zinc-800 text-[11px] font-extrabold uppercase text-slate-400 dark:text-zinc-500">
                   <tr>
-                    <th className="py-3.5 px-4"># สินทรัพย์</th>
-                    <th className="py-3.5 px-4">หน้าที่ในพอร์ต</th>
-                    <th className="py-3.5 px-4 text-right">สัดส่วน (%)</th>
-                    <th className="py-3.5 px-4 text-right">เงินจัดสรร (THB)</th>
-                    <th className="py-3.5 px-4 text-right">จำนวนที่ต้องซื้อ</th>
-                    <th className="py-3.5 px-4 text-right">ราคาซื้อแนะนำ</th>
-                    <th className="py-3.5 px-4 text-right">เป้าหมาย (TP)</th>
-                    <th className="py-3.5 px-4 text-right">ตัดขาดทุน (SL)</th>
-                    <th className="py-3.5 px-4 text-center">จัดการ</th>
+                    <th className="py-3.5 px-3"># สินทรัพย์</th>
+                    <th className="py-3.5 px-3">หน้าที่ในพอร์ต</th>
+                    <th className="py-3.5 px-3 text-right">สัดส่วน (%) & เงิน (THB)</th>
+                    <th className="py-3.5 px-3 text-right">จำนวนซื้อ & โซนซื้อ</th>
+                    <th className="py-3.5 px-3 text-right">เป้าหมาย (TP)</th>
+                    <th className="py-3.5 px-3 text-right">ตัดขาดทุน (SL)</th>
+                    <th className="py-3.5 px-3 text-center">มูลค่า & MOS</th>
+                    <th className="py-3.5 px-3 text-center">หนี้สิน D/E & ปันผล</th>
+                    <th className="py-3.5 px-3 text-center">เหตุผล & 4 หมวด Indicators</th>
+                    <th className="py-3.5 px-3 text-center">จัดการ</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-zinc-800">
-                  {portfolio.items.map((item, idx) => (
-                    <tr key={item.stock.symbol} className="hover:bg-slate-50 dark:hover:bg-zinc-800/40 transition-colors">
-                      <td className="py-3 px-4 font-bold">
-                        <div className="flex items-center space-x-2">
-                          <span className="text-slate-400 font-mono">{idx + 1}.</span>
-                          <div>
-                            <span className="text-slate-900 dark:text-white font-extrabold">{item.stock.symbol}</span>
-                            <span className="block text-[10px] text-slate-400 truncate max-w-[120px]">{item.stock.name}</span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300">
-                          {item.roleInPortfolio}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-right font-bold text-indigo-600 dark:text-indigo-400">
-                        {item.weightPercent}%
-                      </td>
-                      <td className="py-3 px-4 text-right font-bold text-slate-900 dark:text-white">
-                        {item.allocatedCapital.toLocaleString()}
-                      </td>
-                      <td className="py-3 px-4 text-right font-extrabold text-emerald-600 dark:text-emerald-400">
-                        {item.recommendedShares.toLocaleString()} {item.stock.assetCategory === 'FOREX' ? 'Lots' : 'หุ้น'}
-                      </td>
-                      <td className="py-3 px-4 text-right font-mono">
-                        {item.recommendedBuyZone}
-                      </td>
-                      <td className="py-3 px-4 text-right font-bold text-emerald-600 dark:text-emerald-400">
-                        {item.targetPrice} (+{item.expectedReturnPercent}%)
-                      </td>
-                      <td className="py-3 px-4 text-right font-bold text-rose-600 dark:text-rose-400">
-                        {item.stopLossPrice} (-{item.riskPercent}%)
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <div className="flex items-center justify-center space-x-1">
-                          <button
-                            onClick={() => handleOpenEditModal(item, idx)}
-                            className="p-1.5 rounded-lg bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-200 cursor-pointer"
-                            title="แก้ไขข้อมูล / ปรับสัดส่วน"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => handleRemoveStock(item.stock.symbol)}
-                            className="p-1.5 rounded-lg bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-slate-200 cursor-pointer"
-                            title="ลบหุ้นออกจากพอร์ต"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => onSelectStockForDeepAnalysis(item.stock)}
-                            className="px-2 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 text-[11px] font-bold hover:bg-indigo-100 cursor-pointer"
-                          >
-                            วิเคราะห์
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {portfolio.items.map((item, idx) => {
+                    const isExpanded = expandedRowSymbol === item.stock.symbol;
+                    const isHighDebt = (item.stock.de || 0) > 2.0;
+
+                    return (
+                      <React.Fragment key={item.stock.symbol}>
+                        <tr className="hover:bg-slate-50 dark:hover:bg-zinc-800/40 transition-colors">
+                          {/* 1. Symbol & Market */}
+                          <td className="py-3 px-3 font-bold">
+                            <div className="flex items-center space-x-2">
+                              <span className="text-slate-400 font-mono text-[11px]">{idx + 1}.</span>
+                              <div>
+                                <div className="flex items-center space-x-1.5">
+                                  <span className="text-slate-900 dark:text-white font-extrabold">{item.stock.symbol}</span>
+                                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400">
+                                    {item.stock.market}
+                                  </span>
+                                </div>
+                                <span className="block text-[10px] text-slate-400 truncate max-w-[110px] font-normal">{item.stock.name}</span>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* 2. Role in Portfolio */}
+                          <td className="py-3 px-3">
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/20 whitespace-nowrap">
+                              {item.roleInPortfolio}
+                            </span>
+                          </td>
+
+                          {/* 3. Weight & Capital */}
+                          <td className="py-3 px-3 text-right">
+                            <span className="font-extrabold text-indigo-600 dark:text-indigo-400 block">
+                              {item.weightPercent}%
+                            </span>
+                            <span className="text-[10px] text-slate-500 dark:text-zinc-400 font-semibold block">
+                              {item.allocatedCapital.toLocaleString()} ฿
+                            </span>
+                          </td>
+
+                          {/* 4. Shares & Recommended Buy Zone */}
+                          <td className="py-3 px-3 text-right">
+                            <span className="font-extrabold text-emerald-600 dark:text-emerald-400 block">
+                              {item.recommendedShares.toLocaleString()} {item.stock.assetCategory === 'FOREX' ? 'Lots' : 'หุ้น'}
+                            </span>
+                            <span className="text-[10px] text-slate-500 dark:text-zinc-400 font-mono block">
+                              @{item.recommendedBuyZone}
+                            </span>
+                          </td>
+
+                          {/* 5. Target Price */}
+                          <td className="py-3 px-3 text-right">
+                            <span className="font-bold text-emerald-600 dark:text-emerald-400 block">
+                              {item.targetPrice} ฿
+                            </span>
+                            <span className="text-[10px] text-emerald-500 font-semibold block">
+                              (+{item.expectedReturnPercent}%)
+                            </span>
+                          </td>
+
+                          {/* 6. Stop Loss & R:R */}
+                          <td className="py-3 px-3 text-right">
+                            <span className="font-bold text-rose-600 dark:text-rose-400 block">
+                              {item.stopLossPrice} ฿
+                            </span>
+                            <div className="flex items-center justify-end space-x-1 text-[10px]">
+                              <span className="text-rose-500 font-semibold">(-{item.riskPercent}%)</span>
+                              <span className="text-slate-400 font-mono">| R:R 1:{item.riskRewardRatio}</span>
+                            </div>
+                          </td>
+
+                          {/* 7. MOS & Fair Value */}
+                          <td className="py-3 px-3 text-center">
+                            <div className="flex flex-col items-center">
+                              <TrafficStatusBadge type="MOS" value={item.stock.marginOfSafety} compact={true} />
+                              <span className="text-[10px] text-slate-400 mt-0.5 font-mono">
+                                Fair: {item.stock.fairValue}฿ (P/E {item.stock.pe}x)
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* 8. Financial Health D/E & Div */}
+                          <td className="py-3 px-3 text-center">
+                            <div className="flex flex-col items-center">
+                              <TrafficStatusBadge type="DE" value={item.stock.de} compact={true} />
+                              <span className="text-[10px] text-amber-500 dark:text-amber-400 mt-0.5 font-semibold">
+                                ปันผล {item.stock.dividendYield}%
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* 9. End-of-row Reasons & Indicators Action */}
+                          <td className="py-3 px-3 text-center">
+                            <div className="flex items-center justify-center space-x-1.5">
+                              <button
+                                onClick={() => {
+                                  setSelectedReasonItem(item);
+                                  setIsReasonModalOpen(true);
+                                }}
+                                className="px-2.5 py-1 rounded-xl bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold text-[11px] border border-amber-200 dark:border-amber-500/30 flex items-center space-x-1 transition-all cursor-pointer shadow-2xs"
+                                title="คลิกเพื่อดูเหตุผลเชิงกลยุทธ์และตัวชี้วัดแยก 4 หมวดของหุ้นตัวนี้"
+                              >
+                                <Lightbulb className="w-3.5 h-3.5 text-amber-500" />
+                                <span>ดูเหตุผล & Indicators</span>
+                              </button>
+
+                              <button
+                                onClick={() => setExpandedRowSymbol(isExpanded ? null : item.stock.symbol)}
+                                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                                title={isExpanded ? 'ย่อตัวชี้วัดในตาราง' : 'ขยายตัวชี้วัดแยก 4 หมวดในตาราง'}
+                              >
+                                {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                              </button>
+                            </div>
+                          </td>
+
+                          {/* 10. Management Controls */}
+                          <td className="py-3 px-3 text-center">
+                            <div className="flex items-center justify-center space-x-1">
+                              <button
+                                onClick={() => handleOpenEditModal(item, idx)}
+                                className="p-1.5 rounded-lg bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-200 cursor-pointer"
+                                title="แก้ไขข้อมูล / ปรับสัดส่วน"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => handleRemoveStock(item.stock.symbol)}
+                                className="p-1.5 rounded-lg bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-slate-200 cursor-pointer"
+                                title="ลบหุ้นออกจากพอร์ต"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => onSelectStockForDeepAnalysis(item.stock)}
+                                className="px-2 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 text-[11px] font-bold hover:bg-indigo-100 cursor-pointer"
+                                title="เปิดหน้าวิเคราะห์หุ้นรายตัวเชิงลึก"
+                              >
+                                วิเคราะห์
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+
+                        {/* Inline Expandable Row: 4 Categorized Indicator Groups */}
+                        {isExpanded && (
+                          <tr className="bg-slate-50/90 dark:bg-zinc-900/90 border-b border-slate-200 dark:border-zinc-800 animate-in fade-in duration-150">
+                            <td colSpan={10} className="p-3.5">
+                              <div className="space-y-2.5">
+                                {/* 1-Sentence Reason */}
+                                <div className="flex items-center justify-between bg-white dark:bg-[#121215] p-2.5 rounded-xl border border-indigo-200/50 dark:border-indigo-500/20 text-xs">
+                                  <div className="flex items-center space-x-2">
+                                    <span className="p-1 rounded-md bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-black text-[10px]">
+                                      เหตุผลสรุป:
+                                    </span>
+                                    <span className="font-medium text-slate-800 dark:text-zinc-200">
+                                      {item.roleInPortfolio === 'Core Anchor'
+                                        ? `${item.stock.symbol} ทำหน้าที่เป็นเสาหลักพอร์ต (Core Anchor) ด้วย Margin of Safety +${item.stock.marginOfSafety}% ช่วยพยุงเงินต้น`
+                                        : item.roleInPortfolio === 'Growth Engine'
+                                        ? `${item.stock.symbol} เป็นตัวเร่งการเติบโต สอดรับเทรนด์ ${item.stock.trend} มี Upside สู่เป้าหมาย ${item.targetPrice} ฿ (+${item.expectedReturnPercent}%)`
+                                        : item.roleInPortfolio === 'Dividend Generator'
+                                        ? `${item.stock.symbol} มอบกระแสเงินสดจากเงินปันผล ${item.stock.dividendYield}% สม่ำเสมอ ลดความเสี่ยงพอร์ต`
+                                        : `${item.stock.symbol} มีแต้มต่อคณิตศาสตร์ R:R ${item.riskRewardRatio}:1 มีจุด Stop Loss ชัดเจนที่ ${item.stopLossPrice} ฿`}
+                                    </span>
+                                  </div>
+                                  <button
+                                    onClick={() => {
+                                      setSelectedReasonItem(item);
+                                      setIsReasonModalOpen(true);
+                                    }}
+                                    className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center space-x-1 shrink-0 ml-2"
+                                  >
+                                    <span>เปิดการวิเคราะห์ 4 หมวดฉบับเต็ม</span>
+                                    <ExternalLink className="w-3 h-3" />
+                                  </button>
+                                </div>
+
+                                {/* 4 Grouped Indicators Grid */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-[11px]">
+                                  {/* Group 1: Valuation & MOS */}
+                                  <div className="bg-white dark:bg-[#121215] p-2.5 rounded-xl border border-slate-200 dark:border-zinc-800 space-y-1">
+                                    <span className="font-extrabold text-emerald-600 dark:text-emerald-400 block">
+                                      1. มูลค่า & MOS
+                                    </span>
+                                    <div className="text-slate-600 dark:text-zinc-400 space-y-0.5">
+                                      <div>• Fair Value: <strong className="text-slate-900 dark:text-white">{item.stock.fairValue} ฿</strong></div>
+                                      <div>• MOS: <strong className="text-emerald-500">+{item.stock.marginOfSafety}%</strong></div>
+                                      <div>• P/E: <strong className="text-slate-900 dark:text-white">{item.stock.pe}x</strong> (กลุ่ม {item.stock.industryPe}x)</div>
+                                      <div>• P/BV: <strong className="text-slate-900 dark:text-white">{item.stock.pbv}x</strong></div>
+                                    </div>
+                                  </div>
+
+                                  {/* Group 2: Financial Health & Debt */}
+                                  <div className="bg-white dark:bg-[#121215] p-2.5 rounded-xl border border-slate-200 dark:border-zinc-800 space-y-1">
+                                    <span className="font-extrabold text-blue-600 dark:text-blue-400 block">
+                                      2. หนี้สิน & ฐานะการเงิน
+                                    </span>
+                                    <div className="text-slate-600 dark:text-zinc-400 space-y-0.5">
+                                      <div>• D/E Ratio: <strong className={isHighDebt ? 'text-amber-500' : 'text-emerald-500'}>{item.stock.de}x</strong></div>
+                                      <div>• Audit Cap: <strong className="text-slate-900 dark:text-white">{isHighDebt ? 'Cap 30% (หนี้สูง)' : 'Cap 40% (ปกติ)'}</strong></div>
+                                      <div>• ROE: <strong className="text-slate-900 dark:text-white">{item.stock.roe}%</strong></div>
+                                      <div>• Net Margin: <strong className="text-slate-900 dark:text-white">{item.stock.netMargin}%</strong></div>
+                                    </div>
+                                  </div>
+
+                                  {/* Group 3: Technical Timing & Trend */}
+                                  <div className="bg-white dark:bg-[#121215] p-2.5 rounded-xl border border-slate-200 dark:border-zinc-800 space-y-1">
+                                    <span className="font-extrabold text-purple-600 dark:text-purple-400 block">
+                                      3. จังหวะเทคนิค & แนวโน้ม
+                                    </span>
+                                    <div className="text-slate-600 dark:text-zinc-400 space-y-0.5">
+                                      <div>• เทรนด์: <strong className="text-purple-500">{item.stock.trend}</strong></div>
+                                      <div>• RSI (14): <strong className="text-slate-900 dark:text-white">{item.stock.rsi}</strong></div>
+                                      <div>• แนวรับ S1: <strong className="text-emerald-500">{item.stock.support1} ฿</strong></div>
+                                      <div>• แนวต้าน R1: <strong className="text-rose-500">{item.stock.resistance1} ฿</strong></div>
+                                    </div>
+                                  </div>
+
+                                  {/* Group 4: Risk Management & Allocation */}
+                                  <div className="bg-white dark:bg-[#121215] p-2.5 rounded-xl border border-slate-200 dark:border-zinc-800 space-y-1">
+                                    <span className="font-extrabold text-rose-600 dark:text-rose-400 block">
+                                      4. แผนบริหารความเสี่ยง
+                                    </span>
+                                    <div className="text-slate-600 dark:text-zinc-400 space-y-0.5">
+                                      <div>• โซนซื้อ: <strong className="text-slate-900 dark:text-white">{item.recommendedBuyZone}</strong></div>
+                                      <div>• Stop Loss: <strong className="text-rose-500">{item.stopLossPrice} ฿</strong></div>
+                                      <div>• Target TP: <strong className="text-emerald-500">{item.targetPrice} ฿</strong></div>
+                                      <div>• R:R Ratio: <strong className="text-slate-900 dark:text-white">1:{item.riskRewardRatio}</strong></div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -1235,35 +1471,104 @@ ${portfolio.items
         )}
       </div>
 
-      {/* AI Executive Commentary & CIO Strategy Box */}
+      {/* AI Executive Commentary & CIO Strategy Box with Compact/Restore Toggle */}
       <div className="bg-gradient-to-br from-indigo-950/40 to-slate-900/60 border border-indigo-500/30 rounded-3xl p-6 shadow-lg text-slate-200 space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center space-x-2.5">
             <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold">
               <Bot className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-sm font-black text-white">
-                บทวิเคราะห์เชิงกลยุทธ์จาก AI Advisor (CIO Strategic Assessment)
-              </h3>
+              <div className="flex items-center space-x-2">
+                <h3 className="text-sm font-black text-white">
+                  บทวิเคราะห์เชิงกลยุทธ์จาก AI Advisor (CIO Strategic Assessment)
+                </h3>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-bold border border-indigo-500/30">
+                  {isSummaryCompact ? 'สรุปตัวเลขกระชับ' : 'ข้อความฉบับเต็ม'}
+                </span>
+              </div>
               <p className="text-[11px] text-zinc-400">
                 วิเคราะห์การจัดสรรสินทรัพย์ {portfolio.items.length} ตัวให้สอดคล้องกับ Period และเป้าหมายกำไร {portfolio.investorProfile.targetReturnPercent}%
               </p>
             </div>
           </div>
 
-          <button
-            onClick={onOpenAIChat}
-            className="px-3 py-1.5 rounded-xl bg-indigo-600/80 hover:bg-indigo-600 text-white text-xs font-bold flex items-center space-x-1.5 shadow-sm transition-all cursor-pointer"
-          >
-            <span>สนทนาเชิงลึกกับ AI</span>
-            <ChevronRight className="w-3.5 h-3.5" />
-          </button>
+          <div className="flex items-center space-x-2">
+            {/* Toggle Compact vs Full Text with Restore */}
+            <button
+              onClick={() => setIsSummaryCompact(!isSummaryCompact)}
+              className="px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-bold flex items-center space-x-1.5 border border-zinc-700 transition-all cursor-pointer"
+              title={isSummaryCompact ? 'อ่านคำอธิบายฉบับเต็ม' : 'Restore ย่อเหลือเฉพาะตัวเลขกระชับ'}
+            >
+              {isSummaryCompact ? (
+                <>
+                  <FileText className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>อ่านบทวิเคราะห์ฉบับเต็ม</span>
+                </>
+              ) : (
+                <>
+                  <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Restore สรุปตัวเลขกระชับ</span>
+                </>
+              )}
+            </button>
+
+            <button
+              onClick={onOpenAIChat}
+              className="px-3 py-1.5 rounded-xl bg-indigo-600/80 hover:bg-indigo-600 text-white text-xs font-bold flex items-center space-x-1.5 shadow-sm transition-all cursor-pointer"
+            >
+              <span>สนทนาเชิงลึกกับ AI</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-zinc-900/80 border border-zinc-800 text-xs text-zinc-300 leading-relaxed whitespace-pre-line font-normal">
-          {portfolio.aiExecutiveSummary}
-        </div>
+        {/* Compact Mode: KPI Numbers Grid */}
+        {isSummaryCompact ? (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+              <div className="p-3 rounded-2xl bg-zinc-900/90 border border-zinc-800/80">
+                <span className="text-[10px] text-zinc-400 block font-bold">🎯 ผลตอบแทนคาดหวัง</span>
+                <span className="text-base font-black text-emerald-400">+{portfolio.weightedExpectedReturn}%</span>
+                <span className="text-[9px] text-zinc-500 block">เป้าหมาย: +{portfolio.investorProfile.targetReturnPercent}%</span>
+              </div>
+              <div className="p-3 rounded-2xl bg-zinc-900/90 border border-zinc-800/80">
+                <span className="text-[10px] text-zinc-400 block font-bold">🛡️ MOS เฉลี่ยของพอร์ต</span>
+                <span className="text-base font-black text-indigo-400">+{portfolio.averageMarginOfSafety}%</span>
+                <span className="text-[9px] text-zinc-500 block">เกราะป้องกันความปลอดภัย</span>
+              </div>
+              <div className="p-3 rounded-2xl bg-zinc-900/90 border border-zinc-800/80">
+                <span className="text-[10px] text-zinc-400 block font-bold">⚠️ หุ้นหนี้สูง (D/E &gt; 2.0x)</span>
+                <span className="text-base font-black text-blue-400">
+                  {portfolio.items.filter(item => (item.stock.de || 0) > 2.0).reduce((sum, item) => sum + item.weightPercent, 0)}%
+                </span>
+                <span className="text-[9px] text-emerald-400 block">✓ ผ่านเกณฑ์ Audit Step 3.5</span>
+              </div>
+              <div className="p-3 rounded-2xl bg-zinc-900/90 border border-zinc-800/80">
+                <span className="text-[10px] text-zinc-400 block font-bold">🛑 ความเสี่ยงจำกัดขาดทุน</span>
+                <span className="text-base font-black text-rose-400">-{portfolio.estimatedMaxDrawdown}%</span>
+                <span className="text-[9px] text-zinc-500 block">ด้วยระบบ Multi-Tier SL</span>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-zinc-900/60 border border-zinc-800/60 text-xs text-zinc-300 flex items-center justify-between">
+              <p className="line-clamp-2 text-zinc-300">
+                📌 <strong>บทสรุปเชิงปริมาณ:</strong> พอร์ตนี้คัดสรรสินทรัพย์คุณภาพ {portfolio.items.length} ตัว เน้นหุ้นที่มี Margin of Safety หนาและจำกัดน้ำหนักความเสี่ยงตามมาตรฐาน Audit อย่างเคร่งครัด
+              </p>
+              <button
+                onClick={() => setIsSummaryCompact(false)}
+                className="text-[11px] font-bold text-indigo-400 hover:text-indigo-300 hover:underline shrink-0 ml-3 cursor-pointer"
+              >
+                ดูรายละเอียดเต็ม →
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* Full Text Mode */
+          <div className="p-4 rounded-2xl bg-zinc-900/80 border border-zinc-800 text-xs text-zinc-300 leading-relaxed whitespace-pre-line font-normal animate-in fade-in duration-150">
+            {portfolio.aiExecutiveSummary}
+          </div>
+        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs pt-2 border-t border-zinc-800/80">
           <div className="flex items-start space-x-2">
@@ -1566,6 +1871,17 @@ ${portfolio.items
           </div>
         </div>
       )}
+
+      {/* MODAL 3: STOCK REASON & GROUPED INDICATORS DETAIL (AUDIT COMPLIANT) */}
+      <StockReasonDetailModal
+        isOpen={isReasonModalOpen}
+        onClose={() => {
+          setIsReasonModalOpen(false);
+          setSelectedReasonItem(null);
+        }}
+        item={selectedReasonItem}
+        onSelectForDeepAnalysis={onSelectStockForDeepAnalysis}
+      />
     </div>
   );
 };

@@ -97,6 +97,92 @@ export interface AssetMarketMetadata {
   providerStatus: ProviderStatus;
 }
 
+export interface ExecutiveProfile {
+  name: string;
+  role: string; // e.g. "ประธานเจ้าหน้าที่บริหาร (CEO)", "ประธานกรรมการ", "CFO", "ประธานกรรมการตรวจสอบ"
+  tenureYears: number; // ระยะเวลาดำรงตำแหน่ง (ปี)
+  educationBackground?: string;
+  shareholdingPercent?: number; // % ถือหุ้นโดยตรง
+  integrityStatus: 'CLEAN' | 'WATCH' | 'SANCTIONED';
+}
+
+export interface InsiderTradeTransaction {
+  date: string; // e.g. "15/08/2026"
+  executiveName: string;
+  position: string;
+  action: 'BUY' | 'SELL' | 'TRANSFER';
+  shares: number;
+  price: number;
+  totalValue: number; // บาท
+  reportType: 'SEC_FORM_59_2' | 'SEC_FORM_246_2';
+}
+
+export interface GovernanceRedFlagItem {
+  id: string;
+  title: string;
+  description: string;
+  severity: 'PASS' | 'LOW_RISK' | 'MEDIUM_WARNING' | 'HIGH_ALERT' | 'CRITICAL_RED_FLAG';
+  status: 'VERIFIED_CLEAR' | 'WATCH_REQUIRED' | 'FLAGGED';
+  evidenceOrDetail: string;
+}
+
+export interface NewsRadarItem {
+  id: string;
+  title: string;
+  source: string; // e.g. "ก.ล.ต. / SET News", "Kaohoon", "Thansettakij", "InfoQuest", "Bangkok Biz"
+  date: string;
+  category: 'REGULATORY' | 'GOVERNANCE' | 'MANAGEMENT' | 'LITIGATION' | 'EARNINGS_ANNOUNCEMENT' | 'INVESTOR_ALERT';
+  sentiment: 'POSITIVE' | 'NEUTRAL' | 'WARNING' | 'CRITICAL';
+  summary: string;
+  url?: string;
+  verifiedOfficial: boolean; // เป็นประกาศทางการจาก ก.ล.ต. หรือ ตลท.
+}
+
+export interface ExecutiveGovernanceAudit {
+  symbol: string;
+  companyName: string;
+  cgScoreRating: 1 | 2 | 3 | 4 | 5; // ระดับคะแนน CGR สมาคม IOD (1-5 ดาว)
+  cgScoreLabel: string; // เช่น "ดีเลิศ (5 ดาว - Excellent)"
+  esgRating: 'AAA' | 'AA' | 'A' | 'BBB' | 'UNRATED'; // SET ESG Rating
+  overallIntegrityScore: number; // 0 - 100
+  overallVerdict: 'EXCELLENT' | 'GOOD' | 'MONITOR' | 'HIGH_RISK_AVOID';
+  verdictSummary: string; // บทสรุปความโปร่งใสและธรรมาภิบาล
+
+  // Key Executives
+  keyExecutives: ExecutiveProfile[];
+
+  // 5 Red Flag Checklist
+  redFlagChecklist: GovernanceRedFlagItem[];
+
+  // Insider Trading (แบบ 59-2)
+  insiderSentiment: 'NET_ACCUMULATION' | 'NEUTRAL_BALANCED' | 'NET_DISTRIBUTION' | 'ZERO_TRANSACTIONS';
+  netInsiderBuyAmount6M: number; // บาท (บวก = ซื้อสุทธิ, ลบ = ขายสุทธิ)
+  insiderTransactions: InsiderTradeTransaction[];
+
+  // Auditor & Accounting Quality
+  auditorFirm: string; // เช่น "EY Thailand", "PwC Thailand", "Deloitte", "KPMG Phoomchai"
+  auditorOpinion: 'UNQUALIFIED' | 'EMPHASIS_OF_MATTER' | 'QUALIFIED' | 'DISCLAIMER';
+  auditorOpinionText: string;
+  auditorTenureYears: number;
+  hasAbruptAuditorResignation: boolean;
+
+  // News Radar
+  latestNews: NewsRadarItem[];
+  lastScanTimestamp: string;
+}
+
+export interface AnnualFinancialData {
+  year: number;                    // ปีงบการเงิน เช่น 2021, 2022, 2023, 2024, 2025
+  netProfit: number;               // กำไรสุทธิสิ้นปี (ล้านบาท)
+  netDebt: number;                 // หนี้สินสุทธิสิ้นปี (ล้านบาท) - หนี้สินมีดอกเบี้ยหักเงินสดสุทธิ
+  paidUpCapital: number;           // ทุนชำระแล้วสิ้นปี (ล้านบาท)
+  cash?: number;                   // เงินสดและรายการเทียบเท่าเงินสดสิ้นปี (ล้านบาท)
+  capitalIncreaseAmount?: number;  // มูลค่าการเพิ่มทุนในปีนั้น (ล้านบาท ถ้ามี)
+  capitalIncreaseEvent?: string;   // รายละเอียดการเพิ่มทุน (เช่น "XR 3:1", "PP กองทุน", "ไม่มีการเพิ่มทุน")
+  revenue?: number;                // รายได้รวมสิ้นปี (ล้านบาท)
+  roe?: number;                    // ROE (%)
+}
+
 export interface FundamentalDataContract {
   symbol: string;
   status: FundamentalDataStatus;
@@ -202,6 +288,8 @@ export interface StockData {
   fundamentalScore?: number; // 0 - 100
   dcfValue?: number;
   grahamValue?: number;
+  annualFinancials?: AnnualFinancialData[];
+  governanceAudit?: ExecutiveGovernanceAudit;
 
   // Forex Macro Attributes (For Forex & Commodities)
   forexMacro?: ForexMacroData;

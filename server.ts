@@ -365,6 +365,159 @@ CRITICAL INTEGRITY RULES:
   }
 });
 
+// Endpoint: AI Executive Governance & Regulatory News Radar
+app.post("/api/audit-executive-governance", async (req, res) => {
+  try {
+    const { symbol, name, sector } = req.body;
+    if (!symbol) {
+      return res.status(400).json({ error: "Missing symbol" });
+    }
+
+    const symUpper = symbol.toUpperCase().trim();
+    const companyName = name || symUpper;
+
+    const prompt = `
+You are SBY INVEST AI — Chief Compliance Officer & Senior Corporate Governance Auditor for Thai Capital Markets.
+Conduct an authentic, institutional-grade Corporate Governance, Executive Integrity, and Regulatory News Audit for the listed stock:
+- Ticker: ${symUpper}
+- Company: ${companyName}
+- Sector: ${sector || "Listed Market"}
+
+CRITICAL ZERO-HALLUCINATION INTEGRITY RULES:
+1. Do NOT invent legal cases, fake executive scandals, or fictitious SEC sanctions.
+2. If real official information or news regarding any specific item is missing or unavailable, explicitly state: "ข้อมูลไม่เพียงพอสำหรับวิเคราะห์รายการนี้" in evidenceOrDetail.
+3. Return ONLY a valid JSON object matching the schema below (no markdown fences, pure JSON):
+
+{
+  "symbol": "${symUpper}",
+  "companyName": "${companyName}",
+  "cgScoreRating": 5,
+  "cgScoreLabel": "ดีเลิศ (5 ดาว - CGR Excellent) หรือ ดีมาก (4 ดาว)",
+  "esgRating": "AAA",
+  "overallIntegrityScore": 92,
+  "overallVerdict": "EXCELLENT",
+  "verdictSummary": "บทสรุปภาพรวมธรรมาภิบาลและความโปร่งใสของผู้บริหาร 2-3 ประโยคในภาษาไทย",
+  "keyExecutives": [
+    {
+      "name": "ชื่อจริงผู้บริหารระดับสูง (เช่น CEO หรือ ประธานกรรมการ)",
+      "role": "ตำแหน่ง เช่น ประธานเจ้าหน้าที่บริหาร (CEO)",
+      "tenureYears": 5,
+      "shareholdingPercent": 0.05,
+      "integrityStatus": "CLEAN",
+      "educationBackground": "ประวัติการศึกษาโดยสังเขป"
+    },
+    {
+      "name": "ชื่อประธานกรรมการตรวจสอบ หรือ CFO",
+      "role": "ประธานกรรมการตรวจสอบ (Audit Committee Chairman)",
+      "tenureYears": 7,
+      "shareholdingPercent": 0.00,
+      "integrityStatus": "CLEAN",
+      "educationBackground": "ประวัติหรือความเชี่ยวชาญด้านบัญชี/กฎหมาย"
+    }
+  ],
+  "redFlagChecklist": [
+    {
+      "id": "rf-1",
+      "title": "การลาออกกะทันหันของกรรมการตรวจสอบ / CFO",
+      "description": "ตรวจสอบการลาออกของบุคลากรควบคุมภายในก่อนส่งงบ",
+      "severity": "PASS",
+      "status": "VERIFIED_CLEAR",
+      "evidenceOrDetail": "รายละเอียดหลักฐานจริง (หากไม่มีข้อมูลระบุ 'ข้อมูลไม่เพียงพอสำหรับวิเคราะห์รายการนี้')"
+    },
+    {
+      "id": "rf-2",
+      "title": "รายการระหว่างกัน (Related Party Transactions - RPT)",
+      "description": "การกู้ยืมหรือทำธุรกรรมกับบุคคล/กิจการที่เกี่ยวข้องกัน",
+      "severity": "PASS",
+      "status": "VERIFIED_CLEAR",
+      "evidenceOrDetail": "รายละเอียดธุรกรรมหรือความเห็นกรรมการตรวจสอบ"
+    },
+    {
+      "id": "rf-3",
+      "title": "พฤติกรรมซื้อขายหุ้นของผู้บริหาร (แบบ 59-2)",
+      "description": "การเทขายของผู้บริหารหรือผู้ถือหุ้นใหญ่",
+      "severity": "PASS",
+      "status": "VERIFIED_CLEAR",
+      "evidenceOrDetail": "สัดส่วนหรือพฤติกรรมรายงานแบบ 59-2 ล่าสุด"
+    },
+    {
+      "id": "rf-4",
+      "title": "ประวัติการถูก ก.ล.ต. / DSI กล่าวโทษหรือลงโทษ",
+      "description": "คดีการใช้ข้อมูลภายในหรือการทุจริต",
+      "severity": "PASS",
+      "status": "VERIFIED_CLEAR",
+      "evidenceOrDetail": "การตรวจสอบฐานข้อมูล ก.ล.ต."
+    },
+    {
+      "id": "rf-5",
+      "title": "คุณภาพรายงานผู้สอบบัญชีและการเปลี่ยนสำนักงานสอบบัญชี",
+      "description": "ความเห็นของผู้สอบบัญชีและมาตรฐานการสอบบัญชี",
+      "severity": "PASS",
+      "status": "VERIFIED_CLEAR",
+      "evidenceOrDetail": "ความเห็นแบบไม่มีเงื่อนไข / มีเงื่อนไข"
+    }
+  ],
+  "insiderSentiment": "NET_ACCUMULATION",
+  "netInsiderBuyAmount6M": 5000000,
+  "insiderTransactions": [
+    {
+      "date": "15/08/2026",
+      "executiveName": "ชื่อผู้บริหารที่รายงาน",
+      "position": "ตำแหน่ง",
+      "action": "BUY",
+      "shares": 100000,
+      "price": 45.00,
+      "totalValue": 4500000,
+      "reportType": "SEC_FORM_59_2"
+    }
+  ],
+  "auditorFirm": "ชื่อสำนักงานสอบบัญชี เช่น EY / PwC / KPMG / Deloitte",
+  "auditorOpinion": "UNQUALIFIED",
+  "auditorOpinionText": "งบการเงินแสดงฐานะการเงินถูกต้องตามมาตรฐานการรายงานทางการเงิน (ไม่มีเงื่อนไข)",
+  "auditorTenureYears": 5,
+  "hasAbruptAuditorResignation": false,
+  "latestNews": [
+    {
+      "id": "news-1",
+      "title": "พาดหัวข่าวจริงเกี่ยวกับผู้บริหาร/ธรรมาภิบาล/ผลประกอบการ",
+      "source": "แหล่งข่าว เช่น สำนักงาน ก.ล.ต. / ตลาดหลักทรัพย์ฯ / ข่าวหุ้น",
+      "date": "สิงหาคม 2026",
+      "category": "REGULATORY",
+      "sentiment": "POSITIVE",
+      "summary": "สรุปสาระสำคัญของข่าว 1-2 ประโยค",
+      "verifiedOfficial": true
+    }
+  ],
+  "lastScanTimestamp": "สแกนสดด้วย AI (Grounded Intelligence)"
+}
+`;
+
+    try {
+      const response = await callGeminiWithResilience({
+        preferredModel: "gemini-3.8-flash",
+        fallbackModels: ["gemini-flash-latest", "gemini-3.1-flash-lite"],
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+          temperature: 0.2,
+        },
+      });
+
+      const parsed = JSON.parse(response.text || "{}");
+      return res.json({ success: true, audit: parsed });
+    } catch (apiErr) {
+      console.warn("AI Model calls exhausted for executive governance scan:", apiErr);
+      return res.status(500).json({ error: "AI scan unavailable" });
+    }
+  } catch (error: any) {
+    console.error("Error in /api/audit-executive-governance:", error);
+    return res.status(500).json({
+      error: "Governance audit failed",
+      details: error?.message || "Unknown error",
+    });
+  }
+});
+
 // Endpoint: AI Portfolio Strategy & Advisory Commentary
 app.post("/api/generate-ai-portfolio", async (req, res) => {
   try {
