@@ -758,3 +758,91 @@ export interface StockScanResult {
   bidRatio: number;
 }
 
+/**
+ * 🤖 BOT TRADING, LIVE WATCHDOG & POST-MARKET EOD REPORTING TYPES
+ */
+export type BotStrategyType = 
+  | 'VI_MOS_REBALANCE'       // Value Investing: ซื้อเมื่อ MOS > 20% & ทยอย Rebalance
+  | 'MOMENTUM_BREAKOUT'      // Technical: EMA Breakout + Volume Surge > 150%
+  | 'ANTI_STOP_HUNT_PULLBACK' // Technical: Pullback แนวรับ + ATR Buffer 1.5x
+  | 'DIVIDEND_COMPOUNDER';   // VI: หุ้นปันผลสม่ำเสมอ D/E < 1.0x
+
+export type BotExecutionState = 
+  | 'SCANNING'       // กำลังสแกนคัดกรอง
+  | 'WATCHING'       // กำลังเฝ้าดูจังหวะเข้าตามเทคนิค (Tracking Target Price)
+  | 'PROPOSING'      // เตรียมเอกสาร Working Paper รอ User Sign-Off (Human-in-the-Loop)
+  | 'ORDER_PLACED'   // ส่งคำสั่งแล้ว อยู่ในคิวรอ Match
+  | 'ACTIVE_POSITION'// Match แล้ว กำลังถือและเปิด Trailing Stop
+  | 'HALTED_SAFETY'  // หยุดชั่วคราวจาก Safety Guardrail / Kill Switch
+  | 'COMPLETED';     // ปิดดีลแล้ววันนี้
+
+export interface BotWatchItem {
+  id: string;
+  symbol: string;
+  stockName: string;
+  market: MarketType;
+  sector: string;
+  strategy: BotStrategyType;
+  status: BotExecutionState;
+  currentPrice: number;
+  targetEntryPrice: number;
+  distanceToEntryPercent: number; // e.g. -0.8% (ใกล้ถึงจุดเข้า)
+  stopLossPrice: number;
+  targetPrice: number;
+  riskRewardRatio: number;
+  technicalCondition: string; // e.g. "รอแท่ง 15m ปิดเหนือ 46.50 + Vol > 20M"
+  triggerProgressPercent: number; // 0 - 100% สัญญาณครบกี่ %
+  volumeSurgeRatio: number; // e.g. 1.8x
+  rsi: number;
+  mosPercent: number;
+  monitoredSince: string;
+  lastSignalCheck: string;
+  autoTradingEnabled: boolean; // ถ้า true จะเด้ง Working Paper อัตโนมัติ
+  safetyNote: string;
+}
+
+export interface BotTradeOrder {
+  id: string;
+  orderNumber: string;
+  symbol: string;
+  stockName: string;
+  side: 'BUY' | 'SELL';
+  shares: number;
+  price: number;
+  matchedPrice: number;
+  status: 'FILLED' | 'PENDING' | 'CANCELLED' | 'EMERGENCY_STOPPED';
+  strategy: BotStrategyType;
+  time: string; // HH:mm:ss
+  date: string; // YYYY-MM-DD
+  totalValue: number;
+  commission: number;
+  vat: number;
+  netAmount: number;
+  auditHash: string; // SHA-256 Hash
+  userSignOffMethod: 'MANUAL_PIN_SIGN_OFF' | 'AUTO_PILOT_VERIFIED' | 'SAFETY_HALT_OVERRIDE';
+  reason: string; // เหตุผลที่บอตเข้าซื้อหรือขาย
+}
+
+export interface PostMarketEODSummary {
+  reportDate: string;
+  period: 'DAILY_EOD' | 'WEEKLY' | 'MONTHLY_TERM' | 'ALL_TIME';
+  totalTrades: number;
+  buyCount: number;
+  sellCount: number;
+  totalTradingVolumeThb: number;
+  grossRealizedPnL: number;
+  totalFeesPaid: number;
+  netRealizedPnL: number;
+  winCount: number;
+  lossCount: number;
+  winRatePercent: number;
+  profitFactor: number;
+  largestWinThb: number;
+  largestLossThb: number;
+  botUptimePercent: number;
+  circuitBreakerTriggers: number;
+  complianceStatus: 'FULLY_COMPLIANT_SEC_SET' | 'WARNING_ISSUED' | 'AUDIT_FLAG';
+  orders: BotTradeOrder[];
+}
+
+

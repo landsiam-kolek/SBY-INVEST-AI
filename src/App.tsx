@@ -22,6 +22,7 @@ import { AddCustomTickerModal } from './components/AddCustomTickerModal';
 import { AuditSimulationLabModal } from './components/AuditSimulationLabModal';
 import { PortfolioWorkingPaperModal } from './components/PortfolioWorkingPaperModal';
 import { PaperTradingSimulator } from './components/PaperTradingSimulator';
+import { BotTradingDashboard } from './components/BotTradingDashboard';
 import { BeginnerGuideBanner } from './components/BeginnerGuideBanner';
 import { useMarketDataFeed } from './hooks/useMarketDataFeed';
 import { INITIAL_STOCKS } from './data/mockStocks';
@@ -93,11 +94,11 @@ export default function App() {
     }
   });
 
-  // Active View Mode ('analysis' | 'my-portfolio' | 'portfolio' | 'day-trade' | 'paper-trade')
-  const [currentView, setCurrentView] = useState<'analysis' | 'my-portfolio' | 'portfolio' | 'day-trade' | 'paper-trade'>('portfolio');
+  // Active View Mode ('analysis' | 'my-portfolio' | 'portfolio' | 'day-trade' | 'paper-trade' | 'bot-dashboard')
+  const [currentView, setCurrentView] = useState<'analysis' | 'my-portfolio' | 'portfolio' | 'day-trade' | 'paper-trade' | 'bot-dashboard'>('portfolio');
 
   // Navigation history stack for seamless "Previous Page" return
-  type AppView = 'analysis' | 'my-portfolio' | 'portfolio' | 'day-trade' | 'paper-trade';
+  type AppView = 'analysis' | 'my-portfolio' | 'portfolio' | 'day-trade' | 'paper-trade' | 'bot-dashboard';
   const [navigationHistory, setNavigationHistory] = useState<AppView[]>(['portfolio']);
 
   const getViewLabel = (view: AppView): string => {
@@ -110,6 +111,8 @@ export default function App() {
         return 'Day Trade';
       case 'paper-trade':
         return 'จำลองเทรด';
+      case 'bot-dashboard':
+        return 'บอตเทรด & รายงาน';
       case 'analysis':
         return 'วิเคราะห์หุ้นรายตัว & กราฟ';
       default:
@@ -1322,6 +1325,18 @@ export default function App() {
               setCurrentStock(s);
               navigateToView('analysis');
             }}
+          />
+        )}
+
+        {/* VIEW 6: BOT TRADING DASHBOARD & POST-MARKET EOD REPORTING */}
+        {currentView === 'bot-dashboard' && (
+          <BotTradingDashboard
+            allStocks={allStocks}
+            onSelectStockForDeepAnalysis={(s) => {
+              setCurrentStock(s);
+              navigateToView('analysis');
+            }}
+            onOpenWorkingPaperProposal={() => setIsWorkingPaperOpen(true)}
           />
         )}
       </main>

@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 
 interface BeginnerGuideBannerProps {
-  currentView: 'analysis' | 'my-portfolio' | 'portfolio' | 'day-trade' | 'paper-trade';
+  currentView: 'analysis' | 'my-portfolio' | 'portfolio' | 'day-trade' | 'paper-trade' | 'bot-dashboard';
   onChangeView: (view: any) => void;
 }
 

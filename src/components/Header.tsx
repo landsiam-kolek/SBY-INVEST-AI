@@ -45,8 +45,8 @@ interface HeaderProps {
   onOpenMarketModal: () => void;
   onSelectCategory: (cat: AssetCategory) => void;
   // View mode, user auth and objectives
-  currentView: 'analysis' | 'my-portfolio' | 'portfolio' | 'day-trade' | 'paper-trade';
-  onChangeView: (view: 'analysis' | 'my-portfolio' | 'portfolio' | 'day-trade' | 'paper-trade') => void;
+  currentView: 'analysis' | 'my-portfolio' | 'portfolio' | 'day-trade' | 'paper-trade' | 'bot-dashboard';
+  onChangeView: (view: 'analysis' | 'my-portfolio' | 'portfolio' | 'day-trade' | 'paper-trade' | 'bot-dashboard') => void;
   // Previous View & Back Navigation
   canGoBack?: boolean;
   onGoBack?: () => void;
@@ -381,6 +381,21 @@ export const Header: React.FC<HeaderProps> = ({
               <ShieldCheck className={`w-3.5 h-3.5 shrink-0 ${currentView === 'paper-trade' ? 'text-white' : 'text-emerald-500'}`} />
               <span className="hidden 2xl:inline">🎮 ซ้อมเทรด (1-3 ด.)</span>
               <span className="2xl:hidden hidden sm:inline">🎮 ซ้อมเทรด</span>
+            </button>
+
+            {/* BOT TRADING & POST-MARKET REPORTS TAB */}
+            <button
+              onClick={() => onChangeView('bot-dashboard')}
+              id="nav-tab-bot-dashboard"
+              className={`px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-xl transition-all flex items-center space-x-1 font-black ${
+                currentView === 'bot-dashboard'
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                  : 'text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/10'
+              }`}
+            >
+              <Bot className={`w-3.5 h-3.5 shrink-0 ${currentView === 'bot-dashboard' ? 'text-white' : 'text-indigo-500'}`} />
+              <span className="hidden 2xl:inline">🤖 บอตเทรด & รายงาน</span>
+              <span className="2xl:hidden hidden sm:inline">🤖 บอตเทรด</span>
             </button>
           </div>
         </div>
