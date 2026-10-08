@@ -10,17 +10,20 @@ import {
   ChevronUp,
   Award,
   CheckCircle2,
-  X
+  X,
+  Landmark
 } from 'lucide-react';
 
 interface BeginnerGuideBannerProps {
   currentView: 'analysis' | 'my-portfolio' | 'portfolio' | 'day-trade' | 'paper-trade' | 'bot-dashboard';
   onChangeView: (view: any) => void;
+  onOpenBrokerTab?: () => void;
 }
 
 export const BeginnerGuideBanner: React.FC<BeginnerGuideBannerProps> = ({
   currentView,
   onChangeView,
+  onOpenBrokerTab,
 }) => {
   const [isOpen, setIsOpen] = useState<boolean>(() => {
     try {
@@ -194,6 +197,26 @@ export const BeginnerGuideBanner: React.FC<BeginnerGuideBannerProps> = ({
             <ArrowRight className="w-3 h-3" />
           </div>
         </div>
+      </div>
+
+      {/* Broker Integration Fast Link */}
+      <div className="mt-3 pt-3 border-t border-indigo-100 dark:border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+        <div className="flex items-center space-x-2 text-slate-600 dark:text-zinc-300">
+          <Landmark className="w-4 h-4 text-emerald-500 shrink-0" />
+          <span className="font-bold text-slate-900 dark:text-white">เชื่อมต่อพอร์ตโบรกเกอร์ UOB Kay Hian (026):</span>
+          <span className="text-slate-500 dark:text-zinc-400">Settrade Open API Gateway บัญชี Cash 7550158</span>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            if (onOpenBrokerTab) onOpenBrokerTab();
+            else onChangeView('bot-dashboard');
+          }}
+          className="px-3 py-1.5 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition-all flex items-center justify-center space-x-1.5 cursor-pointer shadow-xs shrink-0"
+        >
+          <span>🏛️ ไปที่หน้าตั้งค่าโบรกเกอร์ & Secret</span>
+          <ArrowRight className="w-3.5 h-3.5" />
+        </button>
       </div>
     </div>
   );

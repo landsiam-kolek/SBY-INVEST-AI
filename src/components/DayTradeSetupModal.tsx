@@ -38,16 +38,33 @@ export const DayTradeSetupModal: React.FC<DayTradeSetupModalProps> = ({
   allStocks,
   initialCapital = 100000,
   initialTimeframe = '2_3_DAYS',
-  initialSelectedSymbols = ['DELTA', 'CPALL', 'XAU/USD', 'NVDA'],
+  initialSelectedSymbols = ['CPALL', 'BDMS', 'PTT', 'ADVANC'],
   onConfirmSetup,
 }) => {
   const [timeframe, setTimeframe] = useState<DayTradeTimeframe>(initialTimeframe);
   const [capital, setCapital] = useState<number>(initialCapital);
   const [customCapitalInput, setCustomCapitalInput] = useState<string>(initialCapital.toString());
+
+  // Filter only authentic Thai stocks on SET / mai (Strictly exclude FOREX like EUR/USD and Commodities like XAU/USD)
+  const thaiStocksOnly = allStocks.filter(
+    s => s.market === 'SET' || s.market === 'mai' || s.assetCategory === 'THAI_STOCK'
+  );
+
+  // Top AI Recommended stocks with MOS > 0 and low debt D/E < 2.0x
+  const aiRecommendedStocks = thaiStocksOnly
+    .filter(s => (s.marginOfSafety || 0) > 0 && (s.de || 0) <= 2.0)
+    .sort((a, b) => (b.marginOfSafety || 0) - (a.marginOfSafety || 0))
+    .slice(0, 4);
+
+  const aiRecommendedSymbols = aiRecommendedStocks.length > 0 
+    ? aiRecommendedStocks.map(s => s.symbol)
+    : ['CPALL', 'BDMS', 'PTT', 'ADVANC'];
+
   const [selectedSymbols, setSelectedSymbols] = useState<string[]>(() => {
-    // If initial symbols exist in allStocks, use them
-    const valid = initialSelectedSymbols.filter(sym => allStocks.some(s => s.symbol === sym));
-    return valid.length > 0 ? valid : [allStocks[0]?.symbol || 'CPALL'];
+    const valid = initialSelectedSymbols
+      .filter(sym => sym !== 'XAU/USD' && sym !== 'EUR/USD')
+      .filter(sym => thaiStocksOnly.some(s => s.symbol === sym));
+    return valid.length > 0 ? valid : aiRecommendedSymbols;
   });
   const [searchFilter, setSearchFilter] = useState<string>('');
 
@@ -86,18 +103,18 @@ export const DayTradeSetupModal: React.FC<DayTradeSetupModalProps> = ({
     setCustomCapitalInput(amt.toString());
   };
 
-  const filteredStocks = allStocks.filter(
+  const filteredStocks = thaiStocksOnly.filter(
     s => s.symbol.toLowerCase().includes(searchFilter.toLowerCase()) ||
          s.name.toLowerCase().includes(searchFilter.toLowerCase())
   );
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const chosenStocks = allStocks.filter(s => selectedSymbols.includes(s.symbol));
+    const chosenStocks = thaiStocksOnly.filter(s => selectedSymbols.includes(s.symbol));
     onConfirmSetup({
       timeframe,
       capital,
-      selectedStocks: chosenStocks.length > 0 ? chosenStocks : [allStocks[0]],
+      selectedStocks: chosenStocks.length > 0 ? chosenStocks : [thaiStocksOnly[0] || allStocks[0]],
     });
     onClose();
   };
@@ -277,11 +294,38 @@ export const DayTradeSetupModal: React.FC<DayTradeSetupModalProps> = ({
             <div className="flex items-center justify-between">
               <label className="text-xs font-black text-slate-900 dark:text-white flex items-center space-x-1.5">
                 <Target className="w-4 h-4 text-indigo-500" />
-                <span>3. ใส่หรือเลือกหุ้นที่สนใจจะติดตาม (เลือก 1 - 8 ตัว):</span>
+                <span>3. หุ้นที่ AI แนะนำ หรือเลือกหุ้นที่สนใจจะติดตาม (1 - 8 ตัว):</span>
               </label>
               <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400">
                 เลือกแล้ว {selectedSymbols.length} ตัว
               </span>
+            </div>
+
+            {/* AI AUTO-RECOMMEND BANNER & ACTION */}
+            <div className="p-3 rounded-2xl bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-amber-500/10 border border-indigo-500/30 space-y-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center space-x-2">
+                  <div className="w-6 h-6 rounded-lg bg-indigo-500/20 text-indigo-500 flex items-center justify-center shrink-0">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-black text-slate-900 dark:text-white">
+                      หุ้นที่ AI แนะนำอัตโนมัติ (Top Quantitative Picks)
+                    </span>
+                    <div className="text-[10px] text-slate-500 dark:text-zinc-400">
+                      มี Margin of Safety สูง, หนี้สินต่ำ (D/E &lt; 2.0x) และสภาพคล่องสูงในตลาด SET
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedSymbols(aiRecommendedSymbols)}
+                  className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white text-[11px] font-black flex items-center justify-center space-x-1.5 transition-all shadow-sm cursor-pointer shrink-0"
+                >
+                  <Sparkles className="w-3 h-3 text-amber-300" />
+                  <span>✨ ให้ AI จัดชุดหุ้นให้อัตโนมัติ ({aiRecommendedSymbols.join(', ')})</span>
+                </button>
+              </div>
             </div>
 
             {/* Search Filter */}
@@ -291,7 +335,7 @@ export const DayTradeSetupModal: React.FC<DayTradeSetupModalProps> = ({
                 type="text"
                 value={searchFilter}
                 onChange={(e) => setSearchFilter(e.target.value)}
-                placeholder="ค้นหาหุ้นที่สนใจ เช่น DELTA, CPALL, HANA, NVDA, XAU/USD..."
+                placeholder="ค้นหาหุ้นไทยในตลาด SET เช่น CPALL, BDMS, PTT, ADVANC, KBANK..."
                 className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 text-slate-900 dark:text-white"
               />
             </div>

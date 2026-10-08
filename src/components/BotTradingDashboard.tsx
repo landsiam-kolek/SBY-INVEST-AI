@@ -34,14 +34,22 @@ import {
   UserCheck,
   Check,
   Trash2,
-  X
+  X,
+  Shield,
+  UserX,
+  ArrowLeft,
+  Landmark,
+  Key,
+  Settings,
+  EyeOff
 } from 'lucide-react';
 import { 
   BotWatchItem, 
   BotTradeOrder, 
   PostMarketEODSummary, 
   StockData, 
-  BotStrategyType 
+  BotStrategyType,
+  AuthUser
 } from '../types';
 import { botTradingService } from '../services/botTradingService';
 import { mockBroker, LIVE_TRADING_ENABLED } from '../services/mockBrokerService';
@@ -52,15 +60,46 @@ interface BotTradingDashboardProps {
   allStocks: StockData[];
   onSelectStockForDeepAnalysis: (stock: StockData) => void;
   onOpenWorkingPaperProposal?: () => void;
+  authUser?: AuthUser | null;
+  onSwitchToPaperTrade?: () => void;
+  initialTab?: 'WATCHING_RADAR' | 'POST_MARKET_REPORTS' | 'EXECUTION_ORDERS' | 'SAFETY_COMPLIANCE' | 'BROKER_INTEGRATION';
 }
 
 export const BotTradingDashboard: React.FC<BotTradingDashboardProps> = ({
   allStocks,
   onSelectStockForDeepAnalysis,
   onOpenWorkingPaperProposal,
+  authUser,
+  onSwitchToPaperTrade,
+  initialTab = 'WATCHING_RADAR',
 }) => {
   // Navigation tabs within Bot Dashboard
-  const [activeTab, setActiveTab] = useState<'WATCHING_RADAR' | 'POST_MARKET_REPORTS' | 'EXECUTION_ORDERS' | 'SAFETY_COMPLIANCE'>('WATCHING_RADAR');
+  const [activeTab, setActiveTab] = useState<'WATCHING_RADAR' | 'POST_MARKET_REPORTS' | 'EXECUTION_ORDERS' | 'SAFETY_COMPLIANCE' | 'BROKER_INTEGRATION'>(initialTab);
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
+
+  // Broker Settrade Open API Integration State
+  const [brokerData, setBrokerData] = useState<any>(null);
+  const [isTestingBroker, setIsTestingBroker] = useState<boolean>(false);
+  const [brokerTestFeedback, setBrokerTestFeedback] = useState<any>(null);
+  const [showConfigModal, setShowConfigModal] = useState<boolean>(false);
+  const [showSecretField, setShowSecretField] = useState<boolean>(false);
+  const [isSavingConfig, setIsSavingConfig] = useState<boolean>(false);
+  const [configSaveSuccess, setConfigSaveSuccess] = useState<string | null>(null);
+  const [configSaveError, setConfigSaveError] = useState<string | null>(null);
+  const [brokerConfigForm, setBrokerConfigForm] = useState({
+    appId: '2JPcNn22hEUiV9yd',
+    appSecret: '',
+    brokerId: '026',
+    accountNo: '7550158',
+    appCode: 'ALGO_EQ',
+    environment: 'production' as 'production' | 'sandbox' | 'uat',
+    accountType: 'CASH' as 'CASH' | 'CASH_BALANCE' | 'CREDIT_BALANCE',
+  });
 
   // Bot Status State
   const [botStatus, setBotStatus] = useState<'RUNNING' | 'PAUSED' | 'EMERGENCY_HALTED'>(() => botTradingService.getBotStatus());
@@ -84,6 +123,79 @@ export const BotTradingDashboard: React.FC<BotTradingDashboardProps> = ({
   const [showKillSwitchModal, setShowKillSwitchModal] = useState<boolean>(false);
   const [killSwitchReason, setKillSwitchReason] = useState<string>('');
   const [isHalting, setIsHalting] = useState<boolean>(false);
+
+  // Fetch Broker Gateway Status
+  const fetchBrokerStatus = async () => {
+    try {
+      const res = await fetch('/api/broker/status');
+      if (res.ok) {
+        const data = await res.json();
+        setBrokerData(data);
+        if (data.brokerInfo) {
+          setBrokerConfigForm((prev) => ({
+            ...prev,
+            appId: data.brokerInfo.rawAppId || prev.appId,
+            brokerId: data.brokerInfo.brokerId || prev.brokerId,
+            accountNo: data.brokerInfo.accountNo || prev.accountNo,
+            appCode: data.brokerInfo.appCode || prev.appCode,
+          }));
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to fetch broker status:', e);
+    }
+  };
+
+  const handleTestBrokerConnection = async () => {
+    setIsTestingBroker(true);
+    setBrokerTestFeedback(null);
+    try {
+      const res = await fetch('/api/broker/test-connection', { method: 'POST' });
+      const data = await res.json();
+      setBrokerTestFeedback(data);
+      if (data.session) {
+        setBrokerData(data.session);
+      }
+    } catch (e: any) {
+      setBrokerTestFeedback({ success: false, error: { message: e.message } });
+    } finally {
+      setIsTestingBroker(false);
+    }
+  };
+
+  const handleSaveBrokerConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingConfig(true);
+    setConfigSaveSuccess(null);
+    setConfigSaveError(null);
+    try {
+      const res = await fetch('/api/broker/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(brokerConfigForm),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setConfigSaveSuccess('บันทึกข้อมูลเรียบร้อยแล้ว กำลังทดสอบเชื่อมต่อ Settrade...');
+        await fetchBrokerStatus();
+        setTimeout(() => {
+          setShowConfigModal(false);
+          setConfigSaveSuccess(null);
+          handleTestBrokerConnection();
+        }, 1000);
+      } else {
+        setConfigSaveError('เกิดข้อผิดพลาดในการบันทึก: ' + (data.error || 'Unknown error'));
+      }
+    } catch (err: any) {
+      setConfigSaveError('บันทึกไม่สำเร็จ: ' + err.message);
+    } finally {
+      setIsSavingConfig(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchBrokerStatus();
+  }, []);
 
   // Refresh interval for heartbeat and prices
   useEffect(() => {
@@ -160,6 +272,68 @@ export const BotTradingDashboard: React.FC<BotTradingDashboardProps> = ({
     const matchStrat = filterStrategy === 'ALL' || item.strategy === filterStrategy;
     return matchSearch && matchStrat;
   });
+
+  const isAdmin = authUser?.role === 'admin';
+
+  // SECURITY GUARD: Non-admin users are strictly blocked from using Bot Trading Dashboard in this initial stage
+  if (!isAdmin) {
+    return (
+      <div className="max-w-3xl mx-auto py-8 sm:py-12 px-4">
+        <div className="bg-white dark:bg-[#121215] border border-amber-300 dark:border-amber-700/60 rounded-3xl p-6 sm:p-10 shadow-2xl text-center relative overflow-hidden">
+          <div className="absolute -top-12 -right-12 w-44 h-44 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-12 -left-12 w-44 h-44 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+
+          <div className="w-16 h-16 sm:w-20 sm:h-20 mx-auto rounded-3xl bg-gradient-to-br from-amber-500 to-amber-600 text-slate-950 flex items-center justify-center shadow-lg shadow-amber-500/30 mb-5">
+            <Lock className="w-8 h-8 sm:w-10 sm:h-10" />
+          </div>
+
+          <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-400 text-xs font-black border border-amber-500/30 mb-3">
+            <Shield className="w-3.5 h-3.5" />
+            <span>ADMIN ONLY • โหมดปิดกั้นการเข้าถึงระดับระบบ</span>
+          </div>
+
+          <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+            ระบบเทรดด้วย Bot สงวนสิทธิ์เฉพาะผู้ดูแลระบบ (Admin)
+          </h2>
+
+          <p className="text-sm text-slate-600 dark:text-zinc-400 mt-2.5 max-w-xl mx-auto leading-relaxed">
+            ในขั้นต้นนี้ SBY INVEST AI ได้ทำการ<strong>ปิดกั้นบัญชีผู้ใช้ทั่วไป</strong>ไม่ให้เข้าถึงการรันบอตเทรดอัตโนมัติ เพื่อความปลอดภัยสูงสุดของพอร์ตตามมาตรฐาน ก.ล.ต. และการควบคุมความเสี่ยง
+          </p>
+
+          <div className="my-6 p-4 rounded-2xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 text-left text-xs space-y-2">
+            <div className="flex items-center space-x-2 font-bold text-amber-800 dark:text-amber-300">
+              <UserX className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+              <span>สถานะบัญชีปัจจุบันของคุณ:</span>
+            </div>
+            <p className="text-slate-600 dark:text-zinc-400 pl-6">
+              ชื่อผู้ใช้: <strong className="text-slate-900 dark:text-zinc-200">{authUser?.username || 'Guest / ผู้ใช้ทั่วไป'}</strong> (สิทธิ์: <span className="text-rose-500 font-bold">User ทั่วไป</span>)
+            </p>
+            <p className="text-slate-600 dark:text-zinc-400 pl-6">
+              💡 <em>ในอนาคต เมื่อระบบเปิดทดสอบระยะถัดไป บัญชีของคุณอาจจะได้รับสิทธิ์อนุญาตให้เปิดใช้งานได้</em>
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+            {onSwitchToPaperTrade && (
+              <button
+                type="button"
+                onClick={onSwitchToPaperTrade}
+                id="btn-goto-paper-trade"
+                className="w-full sm:w-auto px-5 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-black shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center space-x-2 cursor-pointer"
+              >
+                <ShieldCheck className="w-4 h-4" />
+                <span>ไปที่ห้องซ้อมเทรด (Paper Trading Simulator)</span>
+              </button>
+            )}
+
+            <div className="text-[11px] text-slate-400 dark:text-zinc-500">
+              หากคุณคือผู้ดูแลระบบ กรุณาเข้าสู่ระบบด้วยบัญชี <strong>Admin</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -335,6 +509,19 @@ export const BotTradingDashboard: React.FC<BotTradingDashboardProps> = ({
         >
           <ShieldCheck className="w-4 h-4 text-cyan-500" />
           <span>⚖️ ข้อกฎหมาย ก.ล.ต. & 5-Level Kill Switch</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('BROKER_INTEGRATION')}
+          id="tab-bot-broker"
+          className={`pb-3 px-2 text-xs sm:text-sm font-bold transition-all flex items-center space-x-2 border-b-2 whitespace-nowrap cursor-pointer ${
+            activeTab === 'BROKER_INTEGRATION'
+              ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+              : 'border-transparent text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200'
+          }`}
+        >
+          <Landmark className="w-4 h-4 text-emerald-500" />
+          <span>🏛️ บัญชีโบรกเกอร์ (UOBKH 026 Settrade)</span>
         </button>
       </div>
 
@@ -935,6 +1122,280 @@ export const BotTradingDashboard: React.FC<BotTradingDashboardProps> = ({
         </div>
       )}
 
+      {/* TAB 5: BROKER INTEGRATION (SETTRADE OPEN API - UOB KAY HIAN 026) */}
+      {activeTab === 'BROKER_INTEGRATION' && (
+        <div className="space-y-5">
+          {/* Top Broker Status Card */}
+          <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-950 text-white border border-indigo-500/30 shadow-xl relative overflow-hidden">
+            <div className="absolute right-0 top-0 translate-x-12 -translate-y-12 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
+              <div className="flex items-start sm:items-center space-x-3.5">
+                <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center shrink-0 shadow-lg shadow-emerald-950/40">
+                  <Landmark className="w-7 h-7" />
+                </div>
+                <div>
+                  <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                    <h3 className="text-lg sm:text-xl font-black tracking-tight">
+                      UOB Kay Hian Securities (Broker 026)
+                    </h3>
+                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center space-x-1">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                      <span>PRODUCTION BRIDGE READY</span>
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 mt-1">
+                    Settrade Open API Gateway • บัญชี Cash (T+2 / Line Available) • เลขที่บัญชี: <strong className="text-white font-mono">7550158</strong>
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-2 shrink-0 flex-wrap gap-2">
+                <button
+                  type="button"
+                  id="btn-open-broker-config"
+                  onClick={() => setShowConfigModal(true)}
+                  className="px-3.5 py-2.5 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-all flex items-center space-x-1.5 cursor-pointer backdrop-blur-xs"
+                >
+                  <Settings className="w-3.5 h-3.5 text-indigo-300" />
+                  <span>⚙️ อัปเดต Secret / ตั้งค่าคีย์</span>
+                </button>
+                <button
+                  type="button"
+                  id="btn-test-broker-connection"
+                  onClick={handleTestBrokerConnection}
+                  disabled={isTestingBroker}
+                  className="px-4 py-2.5 rounded-xl text-xs font-black bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-md shadow-emerald-900/30 transition-all flex items-center space-x-2 cursor-pointer disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isTestingBroker ? 'animate-spin' : ''}`} />
+                  <span>{isTestingBroker ? 'กำลังทดสอบเชื่อมต่อ...' : '⚡ ทดสอบเชื่อมต่อ Settrade API'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Test Feedback Diagnostics Banner */}
+            {brokerTestFeedback && (
+              <div className={`mt-5 p-4 rounded-2xl border text-xs space-y-2 transition-all ${
+                brokerTestFeedback.success 
+                  ? 'bg-emerald-950/40 border-emerald-500/50 text-emerald-200' 
+                  : 'bg-amber-950/40 border-amber-500/50 text-amber-200'
+              }`}>
+                <div className="flex items-center justify-between font-bold">
+                  <div className="flex items-center space-x-2">
+                    {brokerTestFeedback.success ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    ) : (
+                      <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                    )}
+                    <span>ผลการตรวจสอบเกตเวย์ Settrade Open API (Latency: {brokerTestFeedback.session?.latencyMs || 0}ms)</span>
+                  </div>
+                  <span className="text-[10px] opacity-75">
+                    {new Date(brokerTestFeedback.session?.lastPingTime || Date.now()).toLocaleTimeString('th-TH')}
+                  </span>
+                </div>
+
+                {brokerTestFeedback.success ? (
+                  <p className="text-emerald-300 leading-relaxed pl-6">
+                    ✅ เข้าสู่ระบบและได้รับ Access Token จาก Settrade Open API สำเร็จ พร้อมส่งคำสั่งเทรดผ่าน Working Paper
+                  </p>
+                ) : (
+                  <div className="pl-6 space-y-1.5 text-slate-200">
+                    <p>
+                      <strong>รหัสการตอบกลับ:</strong> <span className="font-mono text-amber-300">{brokerTestFeedback.result?.code || 'OA-LOGIN'}</span> — {brokerTestFeedback.result?.message}
+                    </p>
+                    <p className="text-amber-200/90 leading-relaxed bg-black/30 p-2.5 rounded-xl border border-amber-500/20">
+                      💡 <strong>คำแนะนำเชิงเทคนิค:</strong> {brokerTestFeedback.result?.recommendation || 'กรุณาตรวจสอบการอนุมัติสิทธิ์'}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Observation & Manual Hybrid Mode Guidance */}
+          <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-br from-indigo-950/50 via-slate-900 to-indigo-900/30 border border-indigo-500/30 text-white space-y-4 shadow-xl">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center shrink-0">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-sm sm:text-base font-black text-amber-300">
+                    💡 โหมดแนะนำช่วงนี้: "เฝ้าดูราคา & สมองกลจัดพอร์ต (Observation & Advisory Mode)"
+                  </h4>
+                  <p className="text-xs text-slate-300">
+                    ปลอดภัยสูงสุด 100% — ไม่จำเป็นต้องเชื่อมต่อ Bot ส่งคำสั่ง ให้ SBY AI คำนวณแผน แล้วท่านเคาะคำสั่งซื้อใน Streaming เอง
+                  </p>
+                </div>
+              </div>
+              <span className="px-3 py-1 rounded-full text-[11px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 self-start sm:self-auto shrink-0">
+                🛡️ ZERO RISK • HUMAN-IN-THE-LOOP
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+              <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 space-y-2">
+                <div className="font-bold text-amber-200 flex items-center space-x-1.5">
+                  <Activity className="w-4 h-4 text-amber-400" />
+                  <span>1. เรดาร์เฝ้าดูราคา (Radar)</span>
+                </div>
+                <p className="text-slate-300 leading-relaxed text-[11px]">
+                  ติดตามสัญญาณหุ้น MOS สูง, จุด Support/Resistance และเกราะป้องกัน Stop Loss ตลอดวัน
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('WATCHING_RADAR')}
+                  className="w-full mt-1 px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/30 font-bold transition-all flex items-center justify-center space-x-1 cursor-pointer"
+                >
+                  <span>เปิดดูเรดาร์สแกนหุ้น</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 space-y-2">
+                <div className="font-bold text-indigo-200 flex items-center space-x-1.5">
+                  <FileSpreadsheet className="w-4 h-4 text-indigo-400" />
+                  <span>2. ตารางแผนเทรด (Working Paper)</span>
+                </div>
+                <p className="text-slate-300 leading-relaxed text-[11px]">
+                  ดูตัวเลข Entry Price, จุด SL ตาม Ticks/ATR และเป้า TP1-TP2 นำไปเคาะในแอป Streaming ด้วยตนเอง
+                </p>
+                {onOpenWorkingPaperProposal && (
+                  <button
+                    type="button"
+                    onClick={onOpenWorkingPaperProposal}
+                    className="w-full mt-1 px-3 py-1.5 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-200 border border-indigo-500/30 font-bold transition-all flex items-center justify-center space-x-1 cursor-pointer"
+                  >
+                    <span>เปิดตาราง Working Paper</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 space-y-2">
+                <div className="font-bold text-emerald-200 flex items-center space-x-1.5">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                  <span>3. ซ้อมเทรดเสมือนจริง (Paper Trade)</span>
+                </div>
+                <p className="text-slate-300 leading-relaxed text-[11px]">
+                  สนามซ้อม 1-3 เดือนเพื่อความมั่นใจ 100% สำหรับเงินก้อนสุดท้าย โดยไม่ต้องเสี่ยงเงินสดจริง
+                </p>
+                {onSwitchToPaperTrade && (
+                  <button
+                    type="button"
+                    onClick={onSwitchToPaperTrade}
+                    className="w-full mt-1 px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 border border-emerald-500/30 font-bold transition-all flex items-center justify-center space-x-1 cursor-pointer"
+                  >
+                    <span>ไปที่สนามซ้อมจำลองเทรด</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Configuration Matrix Table */}
+          <div className="p-5 rounded-2xl bg-white dark:bg-[#121215] border border-slate-200 dark:border-zinc-800 space-y-4">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-black text-slate-900 dark:text-white flex items-center space-x-2">
+                <Key className="w-4 h-4 text-indigo-500" />
+                <span>พารามิเตอร์การเชื่อมต่อ (Server-Side Vault Configuration)</span>
+              </h4>
+              <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800/40">
+                🔒 ปลอดภัยสูงสุด • ไม่มี Key หลุดไปฝั่งเบราว์เซอร์
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 text-xs">
+              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-100 dark:border-zinc-800 space-y-1">
+                <div className="text-slate-400 font-medium">ชื่อโบรกเกอร์ (Broker)</div>
+                <div className="font-bold text-slate-900 dark:text-white text-sm">UOB Kay Hian (บล. ยูโอบี เคย์เฮียน)</div>
+                <div className="text-[11px] text-slate-500">Broker Member ID: <strong className="text-indigo-500 font-mono">026</strong></div>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-100 dark:border-zinc-800 space-y-1">
+                <div className="text-slate-400 font-medium">เลขที่บัญชีซื้อขาย (Account No)</div>
+                <div className="font-bold text-slate-900 dark:text-white font-mono text-sm">7550158</div>
+                <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold">ประเภท: บัญชี Cash (T+2 / Line Available)</div>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-100 dark:border-zinc-800 space-y-1">
+                <div className="text-slate-400 font-medium">สภาพแวดล้อม (Environment)</div>
+                <div className="font-bold text-rose-500 flex items-center space-x-1 text-sm">
+                  <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+                  <span>PRODUCTION (ตลาดจริง)</span>
+                </div>
+                <div className="text-[11px] text-slate-500 font-mono">open-api.settrade.com</div>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-100 dark:border-zinc-800 space-y-1">
+                <div className="text-slate-400 font-medium">Application ID (App Key)</div>
+                <div className="font-mono font-bold text-slate-900 dark:text-white">{brokerData?.brokerInfo?.appId || '2JPc••••V9yd'}</div>
+                <div className="text-[11px] text-slate-500">Service Code: <strong className="text-indigo-400 font-mono">{brokerData?.brokerInfo?.appCode || 'ALGO_EQ'}</strong></div>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-100 dark:border-zinc-800 space-y-1">
+                <div className="text-slate-400 font-medium">Application Secret (App Secret)</div>
+                <div className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                  {brokerData?.brokerInfo?.appSecretMasked || '•••••••••••••••• (32 Bytes Base64)'}
+                </div>
+                <div className="text-[11px] text-slate-500">
+                  {brokerData?.brokerInfo?.hasAppSecret ? '✅ บันทึกใน Server Vault แล้ว' : 'จัดเก็บปลอดภัยใน Vault ฝั่งเซิร์ฟเวอร์'}
+                </div>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-100 dark:border-zinc-800 space-y-1">
+                <div className="text-slate-400 font-medium">Cryptographic Signing Engine</div>
+                <div className="font-bold text-indigo-600 dark:text-indigo-400 text-sm">SECP256R1 (NIST P-256)</div>
+                <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold">ECDSA SHA-256 Signature Active</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Compliance & Next Steps Guidance */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+            <div className="p-5 rounded-2xl bg-white dark:bg-[#121215] border border-slate-200 dark:border-zinc-800 space-y-3">
+              <h4 className="font-black text-slate-900 dark:text-white flex items-center space-x-2 text-sm">
+                <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                <span>การคุ้มครองความปลอดภัยสำหรับ "บัญชี Cash"</span>
+              </h4>
+              <ul className="space-y-2 text-slate-600 dark:text-zinc-400 leading-relaxed">
+                <li className="flex items-start space-x-2">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 mt-0.5 shrink-0" />
+                  <span><strong>Pre-Flight 2-Way Reconciliation:</strong> ตรวจสอบยอดเงินสดและวงเงิน Line Available จาก UOBKH ก่อนสร้าง Working Paper ทุกครั้ง</span>
+                </li>
+                <li className="flex items-start space-x-2">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 mt-0.5 shrink-0" />
+                  <span><strong>Human-in-the-Loop Sign-Off:</strong> ไม่มีคำสั่งซื้อขายอัตโนมัติโดยที่ผู้ใช้ไม่ได้กรอก Trading PIN ยืนยันด้วยตนเอง</span>
+                </li>
+                <li className="flex items-start space-x-2">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 mt-0.5 shrink-0" />
+                  <span><strong>Rate Limiting Protection:</strong> จำกัดการเรียก Market Data ไม่เกิน 5 req/s และคำสั่งเทรดไม่เกิน 60 req/min ตามข้อกำหนด Settrade</span>
+                </li>
+              </ul>
+            </div>
+
+            <div className="p-5 rounded-2xl bg-white dark:bg-[#121215] border border-slate-200 dark:border-zinc-800 space-y-3">
+              <h4 className="font-black text-slate-900 dark:text-white flex items-center space-x-2 text-sm">
+                <Sparkles className="w-4 h-4 text-amber-500" />
+                <span>ขั้นตอนถัดไปสำหรับการใช้งานในตลาดจริง (Checklist)</span>
+              </h4>
+              <ol className="space-y-2 text-slate-600 dark:text-zinc-400 leading-relaxed list-decimal pl-4">
+                <li>
+                  <strong>กดยอมรับ Disclaimer:</strong> เข้า Streaming ของ UOBKH ➔ More ➔ API Key Management ➔ ยืนยัน Disclaimer
+                </li>
+                <li>
+                  <strong>การผูกสิทธิ์บัญชี (User Mapping):</strong> หากขึ้น `User not found` ให้ติดต่อ Marketing บล. ยูโอบี เคย์เฮียน แจ้งเปิดสิทธิ์เชื่อมต่อ API สำหรับบัญชี 7550158
+                </li>
+                <li>
+                  <strong>รอบซิงค์ข้อมูลข้ามวัน:</strong> ฐานข้อมูล OAM ของ Settrade จะอัปเดตผู้ใช้ใหม่ในช่วง 03:00 - 04:00 น.
+                </li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Emergency Kill Switch Modal Dialog */}
       {showKillSwitchModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
@@ -1042,6 +1503,215 @@ export const BotTradingDashboard: React.FC<BotTradingDashboardProps> = ({
             >
               ปิดหน้าต่าง
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Broker Credentials & Secret Vault Modal */}
+      {showConfigModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-[#151518] rounded-3xl border border-slate-200 dark:border-zinc-800 max-w-xl w-full p-6 shadow-2xl space-y-4 my-8">
+            <div className="flex justify-between items-start border-b border-slate-100 dark:border-zinc-800 pb-3">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center shrink-0">
+                  <Key className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white">
+                    ตั้งค่าเชื่อมต่อ Settrade Open API (UOB Kay Hian)
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-zinc-400">
+                    อัปเดต App ID & Secret ปลอดภัยผ่าน Server-Side Proxy
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowConfigModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Instruction Banner */}
+            <div className="p-3.5 rounded-2xl bg-indigo-50/80 dark:bg-indigo-950/30 border border-indigo-200/60 dark:border-indigo-800/40 text-xs text-indigo-900 dark:text-indigo-200 space-y-1.5 leading-relaxed">
+              <div className="font-bold flex items-center space-x-1.5">
+                <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>คำแนะนำเกี่ยวกับ Secret 7 แถวในระบบ Cloud Run / AI Studio:</span>
+              </div>
+              <p className="text-[11px] text-slate-600 dark:text-zinc-300">
+                หากท่านเข้าไปตั้งค่าในช่อง Secret Variables ของระบบคลาวด์ <strong>ไม่จำเป็นต้องพิมพ์ใหม่ทั้งหมด 7 แถวครับ!</strong> ท่านเพียงแค่แก้ไข <strong>2 แถวแรก</strong>:
+              </p>
+              <ul className="list-disc pl-5 text-[11px] space-y-0.5 font-mono text-slate-700 dark:text-zinc-300">
+                <li><strong className="text-indigo-600 dark:text-indigo-400">SETTRADE_APP_ID</strong>: <span className="bg-white/60 dark:bg-black/40 px-1 rounded">2JPcNn22hEUiV9yd</span></li>
+                <li><strong className="text-emerald-600 dark:text-emerald-400">SETTRADE_APP_SECRET</strong>: ใส่ Secret ชุดใหม่ที่คู่กับ ID นี้</li>
+                <li className="text-slate-500">แถวที่ 3-7 (026, 7550158, ALGO_EQ, production, CASH) <strong>ค่าเดิมคงเดิมทั้งหมด ไม่ต้องแก้ไข</strong></li>
+              </ul>
+              <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                หรือท่านสามารถกรอกลงในแบบฟอร์มด้านล่างนี้ได้โดยตรง เพื่อให้ระบบบันทึกและทดสอบเชื่อมต่อทันที!
+              </p>
+            </div>
+
+            {configSaveSuccess && (
+              <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-500/50 text-emerald-700 dark:text-emerald-300 text-xs font-bold flex items-center space-x-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                <span>{configSaveSuccess}</span>
+              </div>
+            )}
+
+            {configSaveError && (
+              <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-500/50 text-rose-700 dark:text-rose-300 text-xs font-bold flex items-center space-x-2">
+                <AlertTriangle className="w-4 h-4 text-rose-500" />
+                <span>{configSaveError}</span>
+              </div>
+            )}
+
+            {brokerData?.brokerInfo?.hasAppSecret && (
+              <div className="p-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-500/30 text-indigo-700 dark:text-indigo-300 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <span className="font-bold">🔐 สถานะคีย์ปัจจุบัน:</span> มี App Secret บันทึกแล้ว ({brokerData.brokerInfo.appSecretMasked})
+                </div>
+                <span className="text-[10px] bg-indigo-200 dark:bg-indigo-800 text-indigo-900 dark:text-indigo-100 px-2 py-0.5 rounded-md font-bold shrink-0 self-start sm:self-auto">
+                  คู่กับ {brokerData.brokerInfo.appId}
+                </span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveBrokerConfig} className="space-y-3.5 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700 dark:text-zinc-300">
+                    Application ID (App ID)
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={brokerConfigForm.appId}
+                    onChange={(e) => setBrokerConfigForm({ ...brokerConfigForm, appId: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs"
+                    placeholder="2JPcNn22hEUiV9yd"
+                  />
+                  <span className="text-[10px] text-slate-400">รหัส App ID ใหม่ที่ท่านเพิ่ง Gen</span>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700 dark:text-zinc-300 flex items-center justify-between">
+                    <span>Application Secret (App Secret)</span>
+                    <button
+                      type="button"
+                      onClick={() => setShowSecretField(!showSecretField)}
+                      className="text-[10px] text-indigo-500 hover:underline flex items-center space-x-1"
+                    >
+                      {showSecretField ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                      <span>{showSecretField ? 'ซ่อน' : 'แสดง'}</span>
+                    </button>
+                  </label>
+                  <input
+                    type={showSecretField ? 'text' : 'password'}
+                    required
+                    value={brokerConfigForm.appSecret}
+                    onChange={(e) => setBrokerConfigForm({ ...brokerConfigForm, appSecret: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs"
+                    placeholder="วาง App Secret คู่กับ 2JPcNn22hEUiV9yd ที่นี่"
+                  />
+                  <span className="text-[10px] text-slate-400">เก็บรักษาใน Vault ฝั่งเซิร์ฟเวอร์เท่านั้น</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700 dark:text-zinc-300">
+                    Broker ID
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={brokerConfigForm.brokerId}
+                    onChange={(e) => setBrokerConfigForm({ ...brokerConfigForm, brokerId: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs"
+                  />
+                  <span className="text-[10px] text-slate-400">026 (UOB Kay Hian)</span>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700 dark:text-zinc-300">
+                    เลขที่บัญชี (Account No)
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={brokerConfigForm.accountNo}
+                    onChange={(e) => setBrokerConfigForm({ ...brokerConfigForm, accountNo: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs"
+                  />
+                  <span className="text-[10px] text-slate-400">7550158</span>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700 dark:text-zinc-300">
+                    Service Code (App Code)
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={brokerConfigForm.appCode}
+                    onChange={(e) => setBrokerConfigForm({ ...brokerConfigForm, appCode: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs"
+                  />
+                  <span className="text-[10px] text-slate-400">ALGO_EQ (Investor Algo Equities)</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700 dark:text-zinc-300">
+                    Environment
+                  </label>
+                  <select
+                    value={brokerConfigForm.environment}
+                    onChange={(e) => setBrokerConfigForm({ ...brokerConfigForm, environment: e.target.value as any })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs"
+                  >
+                    <option value="production">production (open-api.settrade.com - ตลาดจริง)</option>
+                    <option value="sandbox">sandbox (open-api-test.settrade.com - ทดสอบ)</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700 dark:text-zinc-300">
+                    ประเภทบัญชี (Account Type)
+                  </label>
+                  <select
+                    value={brokerConfigForm.accountType}
+                    onChange={(e) => setBrokerConfigForm({ ...brokerConfigForm, accountType: e.target.value as any })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs"
+                  >
+                    <option value="CASH">CASH (บัญชีเงินสด วงเงิน Line Available / T+2)</option>
+                    <option value="CASH_BALANCE">CASH_BALANCE (บัญชีแคชบาลานซ์ วางเงินสดเต็มจำนวน)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="pt-2 flex items-center justify-end space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setShowConfigModal(false)}
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800 font-bold"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingConfig || !brokerConfigForm.appSecret}
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold shadow-md shadow-emerald-900/30 flex items-center space-x-2 disabled:opacity-50 cursor-pointer"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isSavingConfig ? 'animate-spin' : ''}`} />
+                  <span>{isSavingConfig ? 'กำลังบันทึก...' : '💾 บันทึกและทดสอบเชื่อมต่อทันที'}</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

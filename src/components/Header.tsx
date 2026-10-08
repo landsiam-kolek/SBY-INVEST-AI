@@ -24,7 +24,10 @@ import {
   RefreshCw,
   Clock,
   FileSpreadsheet,
-  ArrowLeft
+  ArrowLeft,
+  Lock,
+  Globe,
+  Landmark
 } from 'lucide-react';
 import { StockData, AssetCategory, AuthUser, TradingMode } from '../types';
 import { SataRobotLogo } from './SataRobotLogo';
@@ -47,6 +50,7 @@ interface HeaderProps {
   // View mode, user auth and objectives
   currentView: 'analysis' | 'my-portfolio' | 'portfolio' | 'day-trade' | 'paper-trade' | 'bot-dashboard';
   onChangeView: (view: 'analysis' | 'my-portfolio' | 'portfolio' | 'day-trade' | 'paper-trade' | 'bot-dashboard') => void;
+  onOpenBrokerTab?: () => void;
   // Previous View & Back Navigation
   canGoBack?: boolean;
   onGoBack?: () => void;
@@ -86,6 +90,7 @@ export const Header: React.FC<HeaderProps> = ({
   onSelectCategory,
   currentView,
   onChangeView,
+  onOpenBrokerTab,
   canGoBack,
   onGoBack,
   previousViewLabel,
@@ -387,15 +392,46 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={() => onChangeView('bot-dashboard')}
               id="nav-tab-bot-dashboard"
-              className={`px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-xl transition-all flex items-center space-x-1 font-black ${
+              title="บอตเทรด SBY INVEST AI (ระบบยังไม่เชื่อมต่อบัญชีซื้อขายกับโบรก)"
+              className={`px-2.5 py-1 rounded-xl transition-all flex flex-col items-center justify-center font-black ${
                 currentView === 'bot-dashboard'
                   ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
                   : 'text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/10'
               }`}
             >
-              <Bot className={`w-3.5 h-3.5 shrink-0 ${currentView === 'bot-dashboard' ? 'text-white' : 'text-indigo-500'}`} />
-              <span className="hidden 2xl:inline">🤖 บอตเทรด & รายงาน</span>
-              <span className="2xl:hidden hidden sm:inline">🤖 บอตเทรด</span>
+              <div className="flex items-center space-x-1">
+                <Bot className={`w-3.5 h-3.5 shrink-0 ${currentView === 'bot-dashboard' ? 'text-white' : 'text-indigo-500'}`} />
+                <span className="hidden 2xl:inline">🤖 บอตเทรด & รายงาน</span>
+                <span className="2xl:hidden inline">🤖 บอตเทรด</span>
+                {authUser?.role !== 'admin' && (
+                  <span className="ml-1 px-1 py-0.2 rounded text-[8px] font-black bg-amber-400/20 text-amber-500 border border-amber-400/30 flex items-center">
+                    <Lock className="w-2 h-2 mr-0.5" />
+                    Admin
+                  </span>
+                )}
+              </div>
+              <span className={`text-[9px] font-bold tracking-tight leading-none mt-0.5 whitespace-nowrap ${
+                currentView === 'bot-dashboard' ? 'text-indigo-100/90' : 'text-indigo-600/80 dark:text-indigo-400/80'
+              }`}>
+                ระบบยังไม่เชื่อมต่อบัญชีซื้อขายกับโบรก
+              </span>
+            </button>
+
+            {/* DIRECT BROKER SETTINGS SHORTCUT TAB */}
+            <button
+              onClick={() => {
+                if (onOpenBrokerTab) {
+                  onOpenBrokerTab();
+                } else {
+                  onChangeView('bot-dashboard');
+                }
+              }}
+              id="nav-tab-broker-direct"
+              title="ตั้งค่าเชื่อมต่อโบรกเกอร์ UOB Kay Hian 026 (Settrade Open API)"
+              className="px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-xl transition-all flex items-center space-x-1 font-black bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 cursor-pointer shadow-xs"
+            >
+              <Landmark className="w-3.5 h-3.5 shrink-0 text-emerald-500" />
+              <span className="inline">🏛️ โบรกเกอร์ UOB</span>
             </button>
           </div>
         </div>
@@ -512,12 +548,12 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               id="open-price-sync-btn"
               onClick={onOpenPriceSyncModal}
-              className="flex items-center space-x-1 px-2 sm:px-2.5 py-1.5 text-xs font-black rounded-xl border border-indigo-400/80 dark:border-indigo-500/50 bg-indigo-500/15 dark:bg-indigo-500/10 hover:bg-indigo-600 hover:text-white text-indigo-700 dark:text-indigo-300 transition-all shadow-xs cursor-pointer group shrink-0"
-              title="เปิดศูนย์รายงานราคาปิดประจำวัน (Daily Stock Price Report), Export Excel/PDF, และนำเข้า Siamchart"
+              className="flex items-center space-x-1 px-2 sm:px-2.5 py-1.5 text-xs font-black rounded-xl border border-amber-500/60 bg-amber-500/15 hover:bg-amber-500 hover:text-slate-950 text-amber-700 dark:text-amber-400 transition-all shadow-xs cursor-pointer group shrink-0"
+              title="ซิงค์ราคาจริงจาก Yahoo Finance (SET .BK) / ศูนย์รายงานราคาปิดประจำวัน"
             >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 group-hover:text-white shrink-0" />
-              <span className="hidden 2xl:inline">รายงานราคาปิด (Last)</span>
-              <span className="hidden lg:inline 2xl:hidden">ราคาปิด EOD</span>
+              <Globe className="w-3.5 h-3.5 text-amber-500 group-hover:text-slate-950 shrink-0" />
+              <span className="hidden 2xl:inline">⚡ ซิงค์ราคา (Yahoo)</span>
+              <span className="hidden lg:inline 2xl:hidden">ซิงค์ราคา</span>
             </button>
           )}
 

@@ -73,48 +73,68 @@ export class MockBrokerAdapter implements IBrokerAdapter {
 export class SettradeBrokerAdapter implements IBrokerAdapter {
   public readonly providerType: BrokerProviderType = 'SETTRADE_REAL';
   public readonly isLiveTradingEnabled: boolean = LIVE_TRADING_ENABLED;
-  public readonly providerName: string = 'Settrade Open API (UOB Kay Hian Broker Bridge)';
-
-  private apiKey?: string;
-  private apiSecret?: string;
-  private brokerAccountId?: string;
-
-  constructor(config?: { apiKey?: string; apiSecret?: string; brokerAccountId?: string }) {
-    this.apiKey = config?.apiKey;
-    this.apiSecret = config?.apiSecret;
-    this.brokerAccountId = config?.brokerAccountId;
-  }
+  public readonly providerName: string = 'Settrade Open API (UOB Kay Hian Broker Bridge 026)';
 
   public async checkHeartbeat() {
-    // When live credentials are provided, pings Settrade REST Gateway
-    if (!this.apiKey) {
-      return { isAlive: false, latencyMs: 0, status: 'WAITING_CREDENTIALS: Settrade API Key not configured' };
+    try {
+      const res = await fetch('/api/broker/status');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      return {
+        isAlive: data.isConnected,
+        latencyMs: data.latencyMs || 0,
+        status: data.isConnected 
+          ? 'CONNECTED_SETTRADE_GATEWAY' 
+          : (data.lastError?.code ? `SETTRADE_${data.lastError.code}` : 'AWAITING_BROKER_USER_MAPPING')
+      };
+    } catch {
+      return { isAlive: false, latencyMs: 0, status: 'DISCONNECTED_BACKEND_GATEWAY' };
     }
-    // Pre-flight check
-    return { isAlive: true, latencyMs: 24, status: 'CONNECTED_SETTRADE_GATEWAY' };
   }
 
   public async getAccountCashBalance() {
-    if (!LIVE_TRADING_ENABLED) {
-      console.warn('[ADAPTER_SAFETY]: LIVE_TRADING_ENABLED is false. Returning Mock Balance.');
-      const bal = await mockBroker.getCashBalance();
-      return { cash: bal.cashBalance, lineAvailable: bal.lineAvailable, currency: bal.currency };
+    try {
+      const res = await fetch('/api/broker/account-info');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.balance) {
+          return {
+            cash: data.balance.cashBalance,
+            lineAvailable: data.balance.lineAvailable,
+            currency: data.balance.currency || 'THB',
+          };
+        }
+      }
+    } catch (e) {
+      console.warn('[SETTRADE_ADAPTER] Failed fetching balance from gateway, using safe fallback', e);
     }
-    // Live call to Settrade /api/v1/accounts/{id}/balance
-    return { cash: 0, lineAvailable: 0, currency: 'THB' };
+    const bal = await mockBroker.getCashBalance();
+    return { cash: bal.cashBalance, lineAvailable: bal.lineAvailable, currency: bal.currency };
   }
 
   public async getAccountPositions() {
-    if (!LIVE_TRADING_ENABLED) {
-      return (await mockBroker.getPositions()).positions.map(p => ({
-        symbol: p.symbol,
-        shares: p.shares,
-        avgCost: p.avgCost,
-        currentPrice: p.marketPrice,
-      }));
+    try {
+      const res = await fetch('/api/broker/positions');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.positions)) {
+          return data.positions.map((p: any) => ({
+            symbol: p.symbol,
+            shares: p.shares,
+            avgCost: p.avgCost,
+            currentPrice: p.currentPrice,
+          }));
+        }
+      }
+    } catch (e) {
+      console.warn('[SETTRADE_ADAPTER] Failed fetching positions from gateway', e);
     }
-    // Live call to Settrade /api/v1/accounts/{id}/positions
-    return [];
+    return (await mockBroker.getPositions()).positions.map(p => ({
+      symbol: p.symbol,
+      shares: p.shares,
+      avgCost: p.avgCost,
+      currentPrice: p.marketPrice,
+    }));
   }
 
   public async submitOrder(order: MockOrderRequest): Promise<MockExecutionResult> {

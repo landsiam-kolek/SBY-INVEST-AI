@@ -44,6 +44,7 @@ import {
 import { buildDayTradePortfolio, generateDayTradeSetup } from './utils/dayTradeEngine';
 import { buildIntelligentPortfolio } from './utils/portfolioEngine';
 import { updateStockWithNewPrice, REAL_MARKET_SNAPSHOT_PRESET } from './utils/priceSyncEngine';
+import { syncAppStocksWithYahooFinance } from './services/yahooFinanceService';
 import { 
   Sparkles, 
   TrendingUp, 
@@ -96,6 +97,7 @@ export default function App() {
 
   // Active View Mode ('analysis' | 'my-portfolio' | 'portfolio' | 'day-trade' | 'paper-trade' | 'bot-dashboard')
   const [currentView, setCurrentView] = useState<'analysis' | 'my-portfolio' | 'portfolio' | 'day-trade' | 'paper-trade' | 'bot-dashboard'>('portfolio');
+  const [botDashboardTab, setBotDashboardTab] = useState<'WATCHING_RADAR' | 'POST_MARKET_REPORTS' | 'EXECUTION_ORDERS' | 'SAFETY_COMPLIANCE' | 'BROKER_INTEGRATION'>('WATCHING_RADAR');
 
   // Navigation history stack for seamless "Previous Page" return
   type AppView = 'analysis' | 'my-portfolio' | 'portfolio' | 'day-trade' | 'paper-trade' | 'bot-dashboard';
@@ -412,12 +414,12 @@ export default function App() {
           stockData: INITIAL_STOCKS[2],
         },
         {
-          symbol: 'XAU/USD',
+          symbol: 'BDMS',
           addedAt: new Date().toISOString(),
-          entryPrice: 2685.50,
-          targetPrice: 2750.00,
-          stopLossPrice: 2640.00,
-          stockData: INITIAL_STOCKS.find((s) => s.symbol === 'XAU/USD') || INITIAL_STOCKS[0],
+          entryPrice: 19.00,
+          targetPrice: 20.50,
+          stopLossPrice: 18.80,
+          stockData: INITIAL_STOCKS.find((s) => s.symbol === 'BDMS') || INITIAL_STOCKS[0],
         }
       ];
     } catch {
@@ -664,24 +666,16 @@ export default function App() {
     navigateToView('my-portfolio');
   };
 
-  const handleSyncAllPrices = () => {
-    const stockMap = new Map<string, StockData>();
-    allStocks.forEach(s => stockMap.set(s.symbol.toUpperCase(), s));
-    dayTradePortfolio.setups.forEach(setup => {
-      if (setup.stock) stockMap.set(setup.symbol.toUpperCase(), setup.stock);
-    });
-    
-    // Synchronize every stock with authentic EOD closing prices
-    const updated = Array.from(stockMap.values()).map(stock => {
-      const sym = stock.symbol.toUpperCase();
-      if (REAL_MARKET_SNAPSHOT_PRESET[sym]) {
-        const p = REAL_MARKET_SNAPSHOT_PRESET[sym];
-        return updateStockWithNewPrice(stock, p.close, p.prevClose, p.change, p.changePercent);
-      }
-      return stock;
-    });
-
-    handleBatchUpdatePrices(updated);
+  const handleSyncAllPrices = async () => {
+    try {
+      // Direct live Settrade Open API (SET) synchronization
+      const res = await syncAppStocksWithYahooFinance(allStocks);
+      handleBatchUpdatePrices(res.updatedStocks);
+    } catch (e: any) {
+      console.error('Settrade Open API synchronization error:', e);
+      // Strict Zero-Fallback Policy ("ถ้าจอดำ ก็ดำ ปลอดภัยไว้ก่อน"):
+      // No fallback to Yahoo Finance, Siamchart, or guessed snapshots.
+    }
   };
 
   const handleExecuteDayTrade = (plan: {
@@ -972,6 +966,10 @@ export default function App() {
         onSelectCategory={handleSelectCategory}
         currentView={currentView}
         onChangeView={(v) => navigateToView(v)}
+        onOpenBrokerTab={() => {
+          setBotDashboardTab('BROKER_INTEGRATION');
+          navigateToView('bot-dashboard');
+        }}
         canGoBack={canGoBack}
         onGoBack={handleGoBack}
         previousViewLabel={previousViewLabel}
@@ -1140,6 +1138,10 @@ export default function App() {
         <BeginnerGuideBanner
           currentView={currentView}
           onChangeView={(v) => navigateToView(v)}
+          onOpenBrokerTab={() => {
+            setBotDashboardTab('BROKER_INTEGRATION');
+            navigateToView('bot-dashboard');
+          }}
         />
 
         {/* VIEW 1: DEDICATED AI INVESTOR PORTFOLIO BUILDER (5 - 8 STOCKS) */}
@@ -1332,6 +1334,9 @@ export default function App() {
         {currentView === 'bot-dashboard' && (
           <BotTradingDashboard
             allStocks={allStocks}
+            authUser={authUser}
+            initialTab={botDashboardTab}
+            onSwitchToPaperTrade={() => navigateToView('paper-trade')}
             onSelectStockForDeepAnalysis={(s) => {
               setCurrentStock(s);
               navigateToView('analysis');
